@@ -1,0 +1,7 @@
+[submodule "gem5"]
+	path = gem5
+	url = git@github.com:gem5/gem5.git
+[submodule "embench-iot"]
+	path = embench-iot
+	url = git@github.com:embench/embench-iot.git
+	ignore = dirty
