@@ -1,11 +1,28 @@
-# Multi-level Simulation using `gem5`
+# Multi-level Simulation using `spike`, `gem5`, and Chipyard SoC RTL Simulation
 
 ## Setup
 
 - `git submodule update --init --recursive .`
 - `git apply --directory embench-iot/ embench.patch` (make embench compile for rv64gc)
 - `make gem5` (build the gem5 simulator binary)
+- Get the RISC-V gcc cross compiler
+    - Pick a release from here: https://github.com/riscv-collab/riscv-gnu-toolchain/tags
+    - Download it (e.g. `wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2023.07.07/riscv64-elf-ubuntu-20.04-gcc-nightly-2023.07.07-nightly.tar.gz`)
+    - Unpack it (`tar -xzvf riscv64-elf-ubuntu-20.04-gcc-nightly-2023.07.07-nightly.tar.gz`)
+    - Add it to your $PATH (`export PATH = ${PATH}:/path/to/riscv/bin`)
+    - Set the $RISCV envvar (`export RISCV = /path/to/riscv`)
+    - Restart your shell and make sure `which riscv64-unknown-elf-gcc` returns the right path
 - `make embench` (build the embench benchmarks for with rv64gc cross-compiler)
+- Build `spike` (riscv-isa-sim)
+    - `git clone git@github.com:riscv-software-src/riscv-isa-sim`
+    - `cd riscv-isa-sim && mkdir build && cd build`
+    - `../configure --prefix=$RISCV`
+    - `make -j32 && make install`
+- Build `pk` (riscv-pk)
+    - `git clone git@github.com:riscv-software-src/riscv-pk`
+    - `cd riscv-pk && mkdir build && cd build`
+    - `../configure --prefix=$RISCV --host=riscv64-unknown-elf`
+    - `make -j8 && make install`
 
 ## Details
 
