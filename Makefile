@@ -37,6 +37,6 @@ embench-gem5: $(embench_gem5_logs)
 
 runs/embench/%/m5out/stats.txt: embench-iot/bd/src/%
 	mkdir -p $(dir $@)
-	./gem5/build/RISCV/gem5.opt --outdir=$(dir $@) ./rocket/rocket.py -c $^/$(notdir $^)
+	./gem5/build/RISCV/gem5.opt --debug-flags=Exec --debug-file=trace.txt.gz --outdir=$(dir $@) ./rocket/rocket.py -c $^/$(notdir $^)
 
 .PHONY: gem5 embench embench-spike embench-gem5
