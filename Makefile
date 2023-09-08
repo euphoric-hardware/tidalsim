@@ -18,10 +18,16 @@ embench_benchmarks_bins := $(foreach dir,$(embench_benchmarks_dirs),$(call add_b
 
 embench: $(embench_benchmarks_bins)
 
-$(embench_benchmarks_bins): $(embench_benchmarks_srcs)
+$(embench_benchmarks_bins) &: $(embench_benchmarks_srcs)
 	cd embench-iot && ./build_all.py --arch riscv32 --chip generic --board ri5cyverilator --cc riscv64-unknown-elf-gcc --cflags="-c -O2 -ffunction-sections" --ldflags="-Wl,-gc-sections" --user-libs="-lm" -v
 
 # Running embench benchmarks on spike
 
-embench_spike_logs = $(addprefix runs/embench/spike/,$(embench_benchmarks))
-$(error $(embench_spike_logs))
+embench_spike_logs = $(addsuffix /spike.log,$(addprefix runs/embench/,$(embench_benchmarks)))
+embench-spike: $(embench_spike_logs)
+
+runs/embench/%/spike.log: embench-iot/bd/src/%
+	mkdir -p $(dir $@)
+	spike -l pk $^/$(notdir $^) > $@ 2>&1
+
+.PHONY: gem5 embench embench-spike
