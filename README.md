@@ -23,6 +23,8 @@
     - `cd riscv-pk && mkdir build && cd build`
     - `../configure --prefix=$RISCV --host=riscv64-unknown-elf`
     - `make -j8 && make install`
+- `make embench-spike`: runs all embench binaries on spike and saves their commit logs in `runs`
+- `make embench-gem5`: runs all embench binaries on gem5 and saves their stats.txt files in `runs`
 
 ## Details
 

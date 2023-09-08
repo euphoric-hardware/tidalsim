@@ -30,4 +30,13 @@ runs/embench/%/spike.log: embench-iot/bd/src/%
 	mkdir -p $(dir $@)
 	spike -l pk $^/$(notdir $^) > $@ 2>&1
 
-.PHONY: gem5 embench embench-spike
+# Running embench benchmarks on gem5
+
+embench_gem5_logs = $(addsuffix /m5out/stats.txt,$(addprefix runs/embench/,$(embench_benchmarks)))
+embench-gem5: $(embench_gem5_logs)
+
+runs/embench/%/m5out/stats.txt: embench-iot/bd/src/%
+	mkdir -p $(dir $@)
+	./gem5/build/RISCV/gem5.opt --outdir=$(dir $@) ./rocket/rocket.py -c $^/$(notdir $^)
+
+.PHONY: gem5 embench embench-spike embench-gem5
