@@ -1,4 +1,4 @@
-# Multi-level Simulation using `spike`, `gem5`, and Chipyard SoC RTL Simulation
+# Multi-level Simulation using `spike`, uArch Warmup Models, and Chipyard RTL Simulation
 
 ## Setup
 
@@ -28,7 +28,7 @@
 
 ## Details
 
-### gem5
+### gem5 (old)
 
 With 32 threads, building `gem5.opt` takes 10-15 minutes.
 
