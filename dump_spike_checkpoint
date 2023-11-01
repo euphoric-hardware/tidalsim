@@ -96,10 +96,12 @@ def gen_checkpoints(binary: Path, nharts: int, isa: str, strategy: CkptStrategy,
 
     print(f"Compiling memory to elf")
     spike_mem_out = checkpoint_dir / "mem.0x80000000.bin"
-    run_cmd(f"riscv64-unknown-elf-objcopy -I binary -O elf64-littleriscv {spike_mem_out.absolute()} {rawmem_elf.absolute()}", cwd=checkpoint_dir)
-    #spike_mem_out.unlink()
-    run_cmd(f"riscv64-unknown-elf-ld -Tdata=0x80000000 -nmagic --defsym tohost={'0x%016x' % tohost} --defsym fromhost={'0x%016x' % fromhost} -o {loadmem_elf.absolute()} {rawmem_elf.absolute()}", cwd=checkpoint_dir)
-    #rawmem_elf.unlink()
+    # NOTE: objcopy and ld produce different elfs when given absolute paths vs relative paths! So I give them relative paths
+    # here to maintain consistency with the original generate-ckpt.sh script
+    run_cmd(f"riscv64-unknown-elf-objcopy -I binary -O elf64-littleriscv {spike_mem_out.name} {rawmem_elf.name}", cwd=checkpoint_dir)
+    spike_mem_out.unlink()
+    run_cmd(f"riscv64-unknown-elf-ld -Tdata=0x80000000 -nmagic --defsym tohost={'0x%016x' % tohost} --defsym fromhost={'0x%016x' % fromhost} -o {loadmem_elf.name} {rawmem_elf.name}", cwd=checkpoint_dir)
+    rawmem_elf.unlink()
 
 def main():
     def auto_int(x):
