@@ -1,22 +1,46 @@
-#!/usr/bin/env python
-
 import argparse
 from pathlib import Path
 import shutil
 import stat
 import sys
-from cli import run_cmd, run_cmd_capture
+
+from tidalsim.util.cli import run_cmd, run_cmd_capture
+from tidalsim.spike_ckpt import arch_state_dump_cmds
 
 # This is a rewrite of the script here: https://github.com/ucb-bar/chipyard/blob/main/scripts/generate-ckpt.sh
 
 class CkptStrategy:
-    pass
+    def spike_cmds_file(nharts: int) -> str:
+        pass
 
 # Take a single checkpoint after reaching `pc` and `n_insts` have committed from that point
 class SinglePCCkpt(CkptStrategy):
     def __init__(self, pc: int, n_insts: int):
         self.pc = pc
         self.n_insts = n_insts
+
+    def spike_cmds_file(nharts: int) -> str:
+        # Run program until PC = self.pc
+        return f"until pc 0 {hex(self.pc)}\n" + \
+            # Run an additional n_insts instructions
+            f"rs {self.n_insts}\n" + \
+            # Dump arch state, with memory in mem.0x80000000.bin
+            arch_state_dump_cmds(f, nharts) + \
+            # Exit spike
+            "quit\n"
+
+# Take multiple checkpoints after reaching `pc` at every instruction commit point in `n_insts`
+# n_insts = [100, 1000, 2000] means
+# Take snapshots at the points where 100/1000/2000 instructions have committed
+class MultiPCCkpt(CkptStrategy):
+    def __init__(self, pc: int, n_insts: List[int]):
+        self.pc = pc
+        self.n_insts = n_insts
+
+    def spike_cmds_file(nharts: int) -> str:
+        n_insts
+        pass
+
 
 def gen_checkpoints(binary: Path, nharts: int, isa: str, strategy: CkptStrategy, dest_dir: Path) -> None:
     dram_base = 0x8000_0000
@@ -40,46 +64,7 @@ def gen_checkpoints(binary: Path, nharts: int, isa: str, strategy: CkptStrategy,
     with open(cmds_file, 'w') as f:
         f.write(f"until pc 0 {hex(strategy.pc)}\n")
         f.write(f"rs {strategy.n_insts}\n")
-        f.write("dump\n")
-        for h in range(nharts):
-            f.write(f"pc {h}\n")
-            f.write(f"priv {h}\n")
-            f.write(f"reg {h} fcsr\n")
-
-            f.write(f"reg {h} vstart\n")
-            f.write(f"reg {h} vxsat\n")
-            f.write(f"reg {h} vxrm\n")
-            f.write(f"reg {h} vcsr\n")
-            f.write(f"reg {h} vtype\n")
-
-            f.write(f"reg {h} stvec\n")
-            f.write(f"reg {h} sscratch\n")
-            f.write(f"reg {h} sepc\n")
-            f.write(f"reg {h} scause\n")
-            f.write(f"reg {h} stval\n")
-            f.write(f"reg {h} satp\n")
-
-            f.write(f"reg {h} mstatus\n")
-            f.write(f"reg {h} medeleg\n")
-            f.write(f"reg {h} mideleg\n")
-            f.write(f"reg {h} mie\n")
-            f.write(f"reg {h} mtvec\n")
-            f.write(f"reg {h} mscratch\n")
-            f.write(f"reg {h} mepc\n")
-            f.write(f"reg {h} mcause\n")
-            f.write(f"reg {h} mtval\n")
-            f.write(f"reg {h} mip\n")
-
-            f.write(f"reg {h} mcycle\n")
-            f.write(f"reg {h} minstret\n")
-
-            f.write(f"mtime\n")
-            f.write(f"mtimecmp {h}\n")
-            for fr in range(32):
-                f.write(f"freg {h} {fr}\n")
-            for xr in range(32):
-                f.write(f"reg {h} {xr}\n")
-            f.write(f"vreg {h}\n")
+        arch_state_dump(f, nharts)
         f.write("quit\n")
 
     spikecmd = f"spike -d --debug-cmd={cmds_file.absolute()} {spike_flags} {binary.absolute()}"
@@ -124,7 +109,3 @@ def main():
     assert binary.is_file()
     strategy = SinglePCCkpt(args.pc, args.n_insts)
     gen_checkpoints(binary, args.nharts, args.isa, strategy, dest_dir)
-
-if __name__ == "__main__":
-    main()
-
