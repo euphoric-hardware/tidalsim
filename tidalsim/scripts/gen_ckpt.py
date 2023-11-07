@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import stat
 import sys
+from joblib import Parallel, delayed
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture
 from tidalsim.util.spike_ckpt import *
@@ -61,7 +62,7 @@ def gen_checkpoints(strategy: CkptStrategy) -> None:
     fromhost = int(run_cmd_capture(f"riscv64-unknown-elf-nm {strategy.binary.absolute()} | grep fromhost | head -c 16", Path.cwd()), 16)
     print(f"Found tohost/fromhost in binary elf file, tohost: {hex(tohost)}, fromhost: {hex(fromhost)}")
 
-    for ckpt_dir in ckpt_dirs:
+    def convert_spike_mems(ckpt_dir: Path) -> None:
         print(f"Compiling memory to elf in {ckpt_dir}")
         spike_mem_out = ckpt_dir / "mem.0x80000000.bin"
         rawmem_elf = ckpt_dir / "raw.elf"
@@ -72,6 +73,8 @@ def gen_checkpoints(strategy: CkptStrategy) -> None:
         spike_mem_out.unlink()
         run_cmd(f"riscv64-unknown-elf-ld -Tdata=0x80000000 -nmagic --defsym tohost={'0x%016x' % tohost} --defsym fromhost={'0x%016x' % fromhost} -o {loadmem_elf.name} {rawmem_elf.name}", cwd=ckpt_dir)
         rawmem_elf.unlink()
+
+    Parallel(n_jobs=-1)(delayed(convert_spike_mems)(ckpt_dir) for ckpt_dir in ckpt_dirs)
 
 def main():
     # Parse string into an int with automatic radix detection
