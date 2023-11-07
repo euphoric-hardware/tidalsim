@@ -10,34 +10,40 @@ from tidalsim.util.spike_ckpt import *
 # This is a rewrite of the script here: https://github.com/ucb-bar/chipyard/blob/main/scripts/generate-ckpt.sh
 
 
-def gen_checkpoints(binary: Path, nharts: int, isa: str, strategy: CkptStrategy, dest_dir: Path) -> None:
-    base_dir = get_base_dir(dest_dir, binary)
+def gen_checkpoints(strategy: CkptStrategy) -> None:
+    # TODO: refactor this (if) we have multiple checkpointing strategies
+    assert isinstance(strategy, StartPCAndInstPoints)
+
+    # Store checkpoints in the base directory associated with the strategy and binary
+    base_dir = strategy.get_base_dir()
     print(f"Placing checkpoints in {base_dir}")
     base_dir.mkdir(exist_ok=True)
-    assert isinstance(strategy, SinglePCCkpt)
-    ckpt_dir = get_ckpt_dir(dest_dir, binary, strategy.pc, strategy.n_insts)
-    print(f"Taking checkpoint in {ckpt_dir}")
-    if ckpt_dir.exists():
-        shutil.rmtree(ckpt_dir)
-    ckpt_dir.mkdir(exist_ok=True)
+
+    # Store each checkpoint in a subdirectory underneath [base_dir]
+    ckpt_dirs = strategy.get_ckpt_dirs()
+    print(f"Taking checkpoints in {ckpt_dirs}")
+    for ckpt_dir in ckpt_dirs:
+        if ckpt_dir.exists():
+            shutil.rmtree(ckpt_dir)
+        ckpt_dir.mkdir(exist_ok=True)
 
     # Commands for spike to run in debug mode
-    spike_cmds_file = base_dir / "spike_cmds.txt"
+    spike_cmds_file = strategy.cmds_file
     print(f"Generating state capture spike interactive commands in {spike_cmds_file}")
     with spike_cmds_file.open('w') as f:
-        f.write(strategy.spike_cmds(nharts))
+        f.write(strategy.spike_cmds())
 
     # The spike invocation command itself
-    spike_cmd = get_spike_cmd(spike_cmds_file, isa, nharts, binary)
+    spike_cmd = strategy.get_spike_cmd()
     run_spike_cmd_file = base_dir / "run_spike.sh"
     with run_spike_cmd_file.open('w') as f:
         f.write(spike_cmd)
     run_spike_cmd_file.chmod(run_spike_cmd_file.stat().st_mode | stat.S_IEXEC)
 
-
     # Actually run spike
     print(f"Running spike")
-    run_cmd(f"{spike_cmd} 2> {(ckpt_dir / 'loadarch').absolute()}", cwd=ckpt_dir)
+    run_cmd(f"{spike_cmd} 2> {(base_dir / 'loadarch').absolute()}", cwd=base_dir)
+    sys.exit(0)
 
     tohost = int(run_cmd_capture(f"riscv64-unknown-elf-nm {binary.absolute()} | grep tohost | head -c 16", Path.cwd()), 16)
     fromhost = int(run_cmd_capture(f"riscv64-unknown-elf-nm {binary.absolute()} | grep fromhost | head -c 16", Path.cwd()), 16)
@@ -55,23 +61,24 @@ def gen_checkpoints(binary: Path, nharts: int, isa: str, strategy: CkptStrategy,
     rawmem_elf.unlink()
 
 def main():
+    # Parse string into an int with automatic radix detection
     def auto_int(x):
         return int(x, 0)
 
     parser = argparse.ArgumentParser(
                     prog='dump_spike_checkpoint',
                     description='Run the given binary in spike and generate checkpoints as requested')
-    parser.add_argument('--nharts', type=int, default=1, help='Number of harts')
-    parser.add_argument('--binary', type=str, required=True, help='Binary to run in spike')
+    parser.add_argument('--n-harts', type=int, default=1, help='Number of harts [default 1]')
     parser.add_argument('--isa', type=str, help='ISA to pass to spike for checkpoint generation [default rv64gc]', default='rv64gc')
-    parser.add_argument('--dest-dir', type=str, required=True)
-    parser.add_argument('--pc', type=auto_int, default=0x80000000, help='PC to take checkpoint at [default 0x80000000]')
-    parser.add_argument('--n-insts', type=auto_int, default=0, help='Instructions after PC to take checkpoint at [default 0]')
+    parser.add_argument('--pc', type=auto_int, default=0x80000000, help='Advance to this PC before taking any checkpoints [default 0x80000000]')
+    parser.add_argument('--binary', type=str, required=True, help='Binary to run in spike')
+    parser.add_argument('--dest-dir', type=str, required=True, help='Directory in which checkpoints are dumped')
+    parser.add_argument('--n-insts', required=True, nargs='+', help='Take checkpoints after n_insts have committed after advancing to the PC. This can be a list e.g. --n-insts 100 1000 2000')
     args = parser.parse_args()
     assert args.pc is not None and args.n_insts is not None
     dest_dir = Path(args.dest_dir)
     dest_dir.mkdir(exist_ok=True)
     binary = Path(args.binary)
     assert binary.is_file()
-    strategy = SinglePCCkpt(args.pc, args.n_insts)
-    gen_checkpoints(binary, args.nharts, args.isa, strategy, dest_dir)
+    strategy = StartPCAndInstPoints(args.pc, [int(x) for x in args.n_insts], dest_dir, binary, args.n_harts, args.isa)
+    gen_checkpoints(strategy)
