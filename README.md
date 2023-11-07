@@ -1,5 +1,29 @@
 # Multi-level Simulation using `spike`, uArch Warmup Models, and Chipyard RTL Simulation
 
+## Setup in Chipyard
+
+- Install `poetry`
+    - `curl -sSL https://install.python-poetry.org | POETRY_HOME=/nscratch/<YOUR USERNAME>/poetry python3 -`
+    - Add `POETRY_HOME/bin` to your `$PATH`
+- Clone Chipyard and use the `multi-level-sim` branch
+- Run Chipyard setup as usual
+    - `./build-setup.sh -s 4 -s 5 -s 6 -s 7 -s 8 -s 9 riscv-tools`
+- Activate the Chipyard conda environment
+    - `conda activate ./.conda-env`
+    - `source env.sh`
+- Install the `tidalsim` poetry environment
+    - `cd tools/tidalsim`
+    - `poetry install`
+    - This will install the `tidalsim` scripts and dependencies into the *conda virtualenv*
+    - Try running `gen-ckpt -h`
+- Generate checkpoints
+    - `gen-ckpt --binary $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add --dest-dir checkpoints --n-insts 0 100 200 300`
+    - `head -n 3 checkpoints/rv64ui-p-add.loadarch/**/loadarch`
+        - This will show the PC and priv mode for each checkpoint taken
+- Run simulation with state injection
+    - `cd sims/vcs`
+    - `make -j16 run-binary-debug LOADMEM=1 STATE_INJECT=1 LOADARCH=../../tools/tidalsim/checkpoints/rv64ui-p-add.loadarch/0x80000000.400`
+
 ## Setup
 
 - `git submodule update --init --recursive .`
@@ -41,7 +65,7 @@ We use `.opt` here as starting point.
 
 We will need a config script to run our benchmarks.
 The system is currently running in System Emulation (SE) mode.
-This allows us to skip having to configure the board and many of the peripherals requires by the Full System (FS) mode. 
+This allows us to skip having to configure the board and many of the peripherals requires by the Full System (FS) mode.
 
 - The system has a `RiscvMinorCPU`, a simple in-order core meant to emulate the `rocket-chip`.
 - The clk is set to 100 MHz and the DRAM to 8192 MB

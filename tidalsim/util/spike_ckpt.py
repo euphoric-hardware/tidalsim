@@ -63,7 +63,7 @@ class StartPCAndInstPoints(CkptStrategy):
 
 def n_insts_to_inst_steps(n_insts: List[int]) -> List[int]:
     inst_steps = [n_insts[0]] + [(n_insts[i] - n_insts[i-1]) for i in range(1, len(n_insts))]
-    assert all(step > 0 for step in inst_steps)
+    assert all(step >= 0 for step in inst_steps)
     return inst_steps
 
 def arch_state_dump_cmds(nharts: int, mem_dump_dir: Optional[Path]) -> str:
