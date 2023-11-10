@@ -10,7 +10,7 @@ core   0: 0x0000000080000108 (0x169010ef) jal     pc + 0x1968
 core   0: >>>>  __init_tls
 core   0: 0x0000000080001a70 (0x00001141) c.addi  sp, -16
 core   0: 0x0000000080001a72 (0x00000613) li      a2, 0""".split('\n')
-        result = list(parse_spike_log(lines))
+        result = list(parse_spike_log(iter(lines)))
         assert result == [
             SpikeTraceEntry(0x8000_0104, "csrw"),
             SpikeTraceEntry(0x8000_0108, "jal"),

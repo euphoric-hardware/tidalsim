@@ -15,7 +15,7 @@ class TestBBVEmbedding:
         extracted_bb = BasicBlocks(
             IntervalTree([Interval(0, 0x8+1, 0), Interval(0xc, 0x18+1, 1)])
         )
-        matrix = spike_trace_to_bbvs(trace, extracted_bb, 2)
+        matrix = spike_trace_to_bbvs(iter(trace), extracted_bb, 2)
         ref = np.array(
             [[2, 0], [0, 2], [0, 1]]
         , dtype=np.float64)
