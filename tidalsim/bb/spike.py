@@ -1,10 +1,11 @@
 import re
-from typing import Iterator, List
+from typing import Iterator, List, Optional
 from dataclasses import dataclass
 
 from intervaltree import IntervalTree, Interval
 from tqdm import tqdm
 import numpy as np
+from more_itertools import ichunked
 
 # Regex patterns to extract instructions or symbols from Spike dump
 instruction_pattern = re.compile(r"core\s*\d: 0x(?P<pc>\w+) \((?P<inst>\w+)\)")
@@ -17,7 +18,6 @@ class BasicBlocks:
 @dataclass
 class SpikeTraceEntry:
     pc: int
-    raw_inst: int
     decoded_inst: str
 
 def parse_spike_log(log_lines: Iterator[str]) -> Iterator[SpikeTraceEntry]:
@@ -27,7 +27,8 @@ def parse_spike_log(log_lines: Iterator[str]) -> Iterator[SpikeTraceEntry]:
             # TODO: add the spike extracted section labels to SpikeTraceEntry
             continue
         else:
-            yield SpikeTraceEntry(int(s[2][2:], 16), int(s[3][3:-1], 16), s[4])
+            # yield SpikeTraceEntry(int(s[2][2:], 16), int(s[3][3:-1], 16), s[4])
+            yield SpikeTraceEntry(int(s[2][2:], 16), s[4])
 
 # RISC-V Psuedoinstructions: https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#pseudoinstructions
 branches = [
@@ -40,7 +41,7 @@ branches = [
         ]
 jumps = ['j', 'jal', 'jr', 'jalr', 'ret', 'call', 'c.j', 'c.jal', 'c.jr', 'c.jalr']
 syscalls = ['ecall', 'ebreak', 'mret', 'sret', 'uret']
-control_insts = branches + jumps + syscalls
+control_insts = set(branches + jumps + syscalls)
 
 def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     # Make initial pass through the Spike dump
@@ -49,12 +50,9 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     # The start of the next Interval is the PC that was jumped to
     # No data is stored, speeds up the lookup significantly
     start = None
-    previous_inst = None
+    previous_inst: Optional[SpikeTraceEntry] = None
     intervals = IntervalTree()
     for trace_entry in tqdm(trace):
-        # if (abs(trace_entry.pc - previous) > 4):
-        #     intervals[start:previous + 1] = None # Intervals are inclusive of the start, but exclusive of the end
-        #     start = trace_entry.pc
         if start is None:
             start = trace_entry.pc
         if trace_entry.decoded_inst in control_insts:
@@ -65,7 +63,7 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
                     to PC: {hex(trace_entry.pc)}, but the last instruction {previous_inst.decoded_inst} \
                     wasn't a control instruction")
         previous_inst = trace_entry
-    if start is not None:
+    if start is not None and previous_inst is not None:
         intervals[start:previous_inst.pc+1] = None
 
     # Ensures that PCs have a one-to-one mapping to an interval
@@ -81,17 +79,18 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
         id += 1
     return BasicBlocks(pc_to_bb_id=unique_intervals)
 
-def spike_log_to_bbvs(log_lines: Iterator[str], bb: BasicBlocks, interval_length: int) -> List[np.ndarray]:
-    N = len(list(log_lines))  # TODO: this should be lazy
-    ks = [100]
-
-    # Make a second pass through and compute the BBV for each interval for each k
-    # BBV shape is (basic block, interval) meaning the basic block vector is in the columns
-    bbvs = [np.zeros((len(intervals), N // k + 1)) for k in ks]
-    for (i, line) in tqdm(enumerate(lines)):
-            if instruction := instruction_pattern.match(line):
-                pc = int(instruction.group("pc"), 16)
-                (interval,) = unique_intervals[pc]
-                for (j, k) in enumerate(ks):
-                    bbvs[j][interval.data, i // k] += 1
-    return bbvs
+def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int) -> np.ndarray:
+    # Dimensions of matrix
+    # # rows = # of intervals = ceil( (length of trace) / interval_length )
+    # # cols = # of features = # of elements in the intervaltree
+    n_features = len(bb.pc_to_bb_id)
+    matrix: List[np.ndarray] = []
+    trace_intervals = ichunked(trace, interval_length)
+    for trace_interval in tqdm(trace_intervals):
+        embedding = np.zeros(n_features)
+        for trace_entry in trace_interval:
+            # TODO: could optimize this with LRU memoization to the point query to the intervaltree
+            bb_id = bb.pc_to_bb_id[trace_entry.pc].pop().data
+            embedding[bb_id] += 1
+        matrix.append(embedding)
+    return np.vstack(matrix)
