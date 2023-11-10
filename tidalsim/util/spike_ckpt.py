@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 @dataclass
 class CkptStrategy(ABC):
     @abstractmethod
-    def spike_cmds(self, nharts: int, dest_dir: Path, binary: Path) -> str:
+    def spike_cmds(self) -> str:
         return NotImplemented
 
 # Take checkpoints after reaching `pc` at every instruction commit point in `n_insts`
