@@ -22,9 +22,9 @@
         - This will show the PC and priv mode for each checkpoint taken
 - Run simulation with state injection
     - `cd sims/vcs`
-    - `make -j16 run-binary-debug LOADMEM=1 STATE_INJECT=1 LOADARCH=../../tools/tidalsim/checkpoints/rv64ui-p-add.loadarch/0x80000000.400 EXTRA_SIM_FLAGS="+perf-sample-period=100 +perf-file=perf.log +max-instructions=1000"`
-        - `+perf-sample-period` is the window for reporting performance statistics (in cycles)
-        - `+perf-file` is where performance statistics are dumped to
+    - `make -j16 run-binary-debug LOADMEM=1 STATE_INJECT=1 LOADARCH=../../tools/tidalsim/checkpoints/rv64ui-p-add.loadarch/0x80000000.400 EXTRA_SIM_FLAGS="+perf-sample-period=100 +perf-file=perf.csv +max-instructions=1000"`
+        - `+perf-sample-period` is the window for reporting performance statistics (in instructions)
+        - `+perf-file` is where performance statistics are dumped to (CSV format)
         - `+max-instructions` terminates the simulation after the specified number of instructions have committed
 
 ## Setup
