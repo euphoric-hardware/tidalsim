@@ -4,12 +4,12 @@ import shutil
 import stat
 import sys
 from joblib import Parallel, delayed
-import pickle
 import logging
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe
 from tidalsim.util.spike_ckpt import *
 from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_to_bbvs, BasicBlocks
+from tidalsim.util.pickle import dump, load
 
 # Runs directory structure
 # dest-dir
@@ -26,6 +26,7 @@ def main():
                     description='Sampled simulation')
     parser.add_argument('--binary', type=str, required=True, help='RISC-V binary to run')
     parser.add_argument('-n', '--interval-length', type=int, required=True, help='Length of a program interval in instructions')
+    parser.add_argument('-c', '--clusters', type=int, required=True, help='Number of clusters')
     # parser.add_argument('--n-harts', type=int, default=1, help='Number of harts [default 1]')
     n_harts = 1 # hardcode this for now
     # parser.add_argument('--isa', type=str, help='ISA to pass to spike [default rv64gc]', default='rv64gc')
@@ -66,41 +67,76 @@ def main():
     # Construct basic blocks from spike commit log if it doesn't already exist
     bb: BasicBlocks
     spike_bb_file = binary_dir / "spike.bb"
-    if not spike_bb_file.exists():
+    if spike_bb_file.exists():
+        logging.info(f"Spike commit log based BB extraction already run, loading results from {spike_bb_file}")
+        bb = load(spike_bb_file)
+    else:
         logging.info(f"Running spike commit log based BB extraction")
         with spike_trace_file.open('r') as f:
             spike_trace_log = parse_spike_log(f)
             bb = spike_trace_to_bbs(spike_trace_log)
-            with spike_bb_file.open('wb') as bb_file:
-                pickle.dump(bb, bb_file)
-            logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
-    else:
-        logging.info(f"Spike commit log based BB extraction already run, loading results from {spike_bb_file}")
-        with spike_bb_file.open('rb') as bb_file:
-            bb = pickle.load(bb_file)
+            dump(bb, spike_bb_file)
+        logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
     logging.debug(f"Basic blocks: {bb}")
 
     # Given an interval length, compute the BBV-based interval embedding
-    embedding_dir = binary_dir / str(args.interval_length)
+    embedding_dir = binary_dir / f"n_{args.interval_length}"
     embedding_dir.mkdir(exist_ok=True)
-    embedding_matrix = embedding_dir / "bbv.matrix"
+    matrix_file = embedding_dir / "bbv.matrix"
     matrix: np.ndarray
-    if not embedding_matrix.exists():
-        logging.info(f"Computing BBV embedding in {embedding_matrix}")
+    if matrix_file.exists():
+        logging.info(f"BBV embedding already computed in {matrix_file}, loading")
+        matrix = load(matrix_file)
+    else:
+        logging.info(f"Computing BBV embedding in {matrix_file}")
         with spike_trace_file.open('r') as spike_trace:
             spike_trace_log = parse_spike_log(spike_trace)
             matrix = spike_trace_to_bbvs(spike_trace_log, bb, args.interval_length)
-            with embedding_matrix.open('wb') as matrix_file:
-                pickle.dump(matrix, matrix_file)
-    else:
-        logging.info(f"BBV embedding already computed in {embedding_matrix}, loading")
-        with embedding_matrix.open('rb') as matrix_file:
-            matrix = pickle.load(matrix_file)
+            dump(matrix, matrix_file)
+        logging.info(f"Saving BBV embedding to {matrix_file}")
     logging.debug(f"Embedding matrix:\n{matrix}")
     logging.info(f"Embedding matrix shape: {matrix.shape}")
 
     # Perform clustering and select centroids
-    
+    cluster_dir = embedding_dir / f"c_{args.clusters}"
+    cluster_dir.mkdir(exist_ok=True)
+    logging.info(f"Storing clustering for clusters = {args.clusters} in: {cluster_dir}")
 
+    from sklearn.preprocessing import normalize
+    logging.info(f"Normalizing embedding matrix")
+    matrix = normalize(matrix)
+    logging.debug(f"Normed embedding matrix:\n{matrix}")
+
+    from sklearn.cluster import KMeans
+    kmeans_file = cluster_dir / "kmeans.model"
+    keams: KMeans
+    if kmeans_file.exists():
+        logging.info(f"Loading k-means model from {kmeans_file}")
+        kmeans = load(kmeans_file)
+    else:
+        logging.info(f"Performing k-means clustering with {args.clusters} clusters")
+        # random_state makes k-means deterministic and cachable, but it is concerning that the labels change
+        # a lot depending on random_state, TODO: investigate this in detail
+        # I guess it means args.cluters is too high (higher than the rank of the matrix) and thus noisy
+        kmeans = KMeans(n_clusters=args.clusters, n_init="auto", verbose=100, random_state=100).fit(matrix)
+        logging.info(f"Saving k-means model to {kmeans_file}")
+        dump(kmeans, kmeans_file)
+
+    centroids = kmeans.cluster_centers_
+    labels = kmeans.labels_
+
+    # Compute which samples are closest to each cluster
+    import numpy as np
+    checkpoint_idxs = []
+    for label_idx in range(centroids.shape[0]):
+        sample_idxes_near_cluster = np.argwhere(labels == label_idx).flatten()
+        samples_near_cluster = matrix[sample_idxes_near_cluster,:]
+        dists_from_centroid = np.linalg.norm(np.subtract(samples_near_cluster, centroids[label_idx]), axis=1)
+        closest_sample_idx = np.argmin(dists_from_centroid)
+        matrix_sample_idx = sample_idxes_near_cluster[closest_sample_idx]
+        checkpoint_idxs.append(matrix_sample_idx)
+    logging.info(f"The samples closest to each cluster centroid are: {checkpoint_idxs}")
+    
+    # import matplotlib.pyplot as plt
 
     # Capture arch checkpoints from spike
