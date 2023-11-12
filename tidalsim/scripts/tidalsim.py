@@ -136,7 +136,16 @@ def main():
         matrix_sample_idx = sample_idxes_near_cluster[closest_sample_idx]
         checkpoint_idxs.append(matrix_sample_idx)
     logging.info(f"The samples closest to each cluster centroid are: {checkpoint_idxs}")
-    
-    # import matplotlib.pyplot as plt
+
+    # Figure out the instruction commit points to take checkpoints at
+    checkpoint_insts = np.sort(np.multiply(np.array(checkpoint_idxs), args.interval_length))
+    logging.info(f"Taking checkpoints at instruction points: {list(checkpoint_insts)}")
 
     # Capture arch checkpoints from spike
+    # TODO: make this a Python native API to avoid a subprocess call
+    checkpoint_dir = cluster_dir / "checkpoints"
+    checkpoint_dir.mkdir(exist_ok=True)
+    gen_ckpt_cmd = f"gen-ckpt --binary {binary} --dest-dir {checkpoint_dir} --n-insts {np.array2string(checkpoint_insts, separator=' ', max_line_width=10000000)[1:-1]}"
+    run_cmd(gen_ckpt_cmd, cwd=checkpoint_dir)
+
+    # import matplotlib.pyplot as plt
