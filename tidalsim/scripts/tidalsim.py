@@ -31,11 +31,17 @@ def main():
     n_harts = 1 # hardcode this for now
     # parser.add_argument('--isa', type=str, help='ISA to pass to spike [default rv64gc]', default='rv64gc')
     isa = "rv64gc" # hardcode this for now
+    parser.add_argument('--simulator', type=str, required=True, help='Path to the RTL simulator binary with state injection support')
+    parser.add_argument('--chipyard-root', type=str, required=True, help='Path to the base of Chipyard')
     parser.add_argument('--dest-dir', type=str, required=True, help='Directory in which checkpoints are dumped')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
     binary = Path(args.binary).resolve()
     binary_name = binary.name
+    simulator = Path(args.simulator).resolve()
+    assert simulator.exists() and simulator.is_file()
+    chipyard_root = Path(args.chipyard_root).resolve()
+    assert chipyard_root.is_dir()
     dest_dir = Path(args.dest_dir).resolve()
     dest_dir.mkdir(exist_ok=True)
     cwd = Path.cwd()
@@ -143,9 +149,38 @@ def main():
 
     # Capture arch checkpoints from spike
     # TODO: make this a Python native API to avoid a subprocess call
+    # Cache this result if all the checkpoints are already available
     checkpoint_dir = cluster_dir / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True)
-    gen_ckpt_cmd = f"gen-ckpt --binary {binary} --dest-dir {checkpoint_dir} --n-insts {np.array2string(checkpoint_insts, separator=' ', max_line_width=10000000)[1:-1]}"
-    run_cmd(gen_ckpt_cmd, cwd=checkpoint_dir)
+    checkpoints = [checkpoint_dir / f"{binary_name}.loadarch" / f"0x80000000.{i}" for i in checkpoint_insts]
+    checkpoints_exist = [(c / "loadarch").exists() and (c / "mem.elf").exists() for c in checkpoints]
+    if all(checkpoints_exist):
+        logging.info("Checkpoints already exist, not rerunning spike")
+    else:
+        logging.info("Arch checkpoints will be created by calling spike via gen-ckpt")
+        gen_ckpt_cmd = f"gen-ckpt --binary {binary} --dest-dir {checkpoint_dir} --n-insts {np.array2string(checkpoint_insts, separator=' ', max_line_width=10000000)[1:-1]}"
+        run_cmd(gen_ckpt_cmd, cwd=checkpoint_dir)
 
-    # import matplotlib.pyplot as plt
+    # Run each checkpoint in RTL sim and extract perf metrics
+    perf_files_exist = all([(c / "perf.csv").exists() for c in checkpoints])
+    if perf_files_exist:
+        logging.info("Performance metrics for checkpoints already collected, skipping RTL simulation")
+    else:
+        logging.info("Running parallel RTL simulations to collect performance metrics for checkpoints")
+        def run_rtl_sim(checkpoint_dir: Path) -> None:
+            rtl_sim_cmd = f"{simulator} \
+                    +permissive \
+                    +dramsim \
+                    +dramsim_ini_dir={chipyard_root}/generators/testchipip/src/main/resources/dramsim2_ini \
+                    +max-cycles=10000000 +no_hart0_msip \
+                    +perf-sample-period={int(args.interval_length / 10)} \
+                    +perf-file={(checkpoint_dir / 'perf.csv').resolve()} \
+                    +max-instructions={args.interval_length} \
+                    +ntb_random_seed_automatic \
+                    +loadmem={checkpoint_dir / 'mem.elf'} \
+                    +loadarch={checkpoint_dir / 'loadarch'} \
+                    +permissive-off \
+                    {checkpoint_dir / 'mem.elf'}"
+                    # +verbose \
+            run_cmd(rtl_sim_cmd, cwd=checkpoint_dir)
+        Parallel(n_jobs=-1)(delayed(run_rtl_sim)(checkpoint) for checkpoint in checkpoints)
