@@ -10,7 +10,6 @@ from tidalsim.util.spike_ckpt import *
 
 # This is a rewrite of the script here: https://github.com/ucb-bar/chipyard/blob/main/scripts/generate-ckpt.sh
 
-
 def gen_checkpoints(strategy: CkptStrategy) -> None:
     # TODO: refactor this (if) we have multiple checkpointing strategies
     assert isinstance(strategy, StartPCAndInstPoints)
@@ -35,7 +34,7 @@ def gen_checkpoints(strategy: CkptStrategy) -> None:
         f.write(strategy.spike_cmds())
 
     # The spike invocation command itself
-    spike_cmd = strategy.get_spike_cmd()
+    spike_cmd = get_spike_cmd(strategy.binary, strategy.n_harts, strategy.isa, spike_cmds_file)
     run_spike_cmd_file = base_dir / "run_spike.sh"
     with run_spike_cmd_file.open('w') as f:
         f.write(spike_cmd)

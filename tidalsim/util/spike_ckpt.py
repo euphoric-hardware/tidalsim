@@ -3,6 +3,18 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+def get_spike_flags(n_harts: int, isa: str, dram_size: int = 0x1000_0000) -> str:
+    dram_base = 0x8000_0000
+    basemem = f"{dram_base}:{dram_size}"
+    # TODO: add pmp CSR dumping commands to spike
+    spike_flags = f"-p{n_harts} --pmpregions=0 --isa={isa} -m{basemem}"
+    return spike_flags
+
+def get_spike_cmd(binary: Path, n_harts: int, isa: str, debug_file: Optional[Path], extra_args: str = "") -> str:
+    spike_flags = get_spike_flags(n_harts, isa)
+    debug_flags = "" if debug_file is None else f"-d --debug-cmd={debug_file.absolute()}"
+    return f"spike {debug_flags} {extra_args} {spike_flags} {binary.absolute()}"
+
 @dataclass
 class CkptStrategy(ABC):
     @abstractmethod
@@ -49,17 +61,6 @@ class StartPCAndInstPoints(CkptStrategy):
                 yield run_n_insts + dump_arch_state
         exit_spike = "quit\n"
         return wait_for_pc + ''.join(list(per_interval_cmds())) + exit_spike
-
-    def get_spike_flags(self, dram_size: int = 0x1000_0000) -> str:
-        dram_base = 0x8000_0000
-        basemem = f"{dram_base}:{dram_size}"
-        # TODO: add pmp CSR dumping commands to spike
-        spike_flags = f"-p{self.n_harts} --pmpregions=0 --isa={self.isa} -m{basemem}"
-        return spike_flags
-
-    def get_spike_cmd(self) -> str:
-        spike_flags = self.get_spike_flags()
-        return f"spike -d --debug-cmd={self.cmds_file.absolute()} {spike_flags} {self.binary.absolute()}"
 
 def n_insts_to_inst_steps(n_insts: List[int]) -> List[int]:
     inst_steps = [n_insts[0]] + [(n_insts[i] - n_insts[i-1]) for i in range(1, len(n_insts))]
