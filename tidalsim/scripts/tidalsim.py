@@ -57,7 +57,7 @@ def main():
 
     # Create the binary directory if it doesn't exist
     # Ignore the possibility of hash collisions as these can only happen for binaries that have the same name and the same first 8 hex characters of their hash
-    binary_hash = run_cmd_capture(f"sha256sum {binary.absolute()} | cut -d ' ' --fields 1", cwd=dest_dir)
+    binary_hash = run_cmd_capture(f"sha256sum {binary.resolve()} | cut -d ' ' --fields 1", cwd=dest_dir)
     binary_dir = dest_dir / f"{binary_name}-{binary_hash[:8]}"
     binary_dir.mkdir(exist_ok=True)
     logging.info(f"Working directory set to {binary_dir}")
@@ -146,22 +146,20 @@ def main():
     logging.info(f"The samples closest to each cluster centroid are: {checkpoint_idxs}")
 
     # Figure out the instruction commit points to take checkpoints at
-    checkpoint_insts = np.sort(np.multiply(np.array(checkpoint_idxs), args.interval_length))
-    logging.info(f"Taking checkpoints at instruction points: {list(checkpoint_insts)}")
+    checkpoint_insts = sorted([idx * args.interval_length for idx in checkpoint_idxs])
+    logging.info(f"Taking checkpoints at instruction points: {checkpoint_insts}")
 
     # Capture arch checkpoints from spike
-    # TODO: make this a Python native API to avoid a subprocess call
     # Cache this result if all the checkpoints are already available
     checkpoint_dir = cluster_dir / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True)
-    checkpoints = [checkpoint_dir / f"{binary_name}.loadarch" / f"0x80000000.{i}" for i in checkpoint_insts]
+    checkpoints = [checkpoint_dir / f"0x80000000.{i}" for i in checkpoint_insts]
     checkpoints_exist = [(c / "loadarch").exists() and (c / "mem.elf").exists() for c in checkpoints]
     if all(checkpoints_exist):
         logging.info("Checkpoints already exist, not rerunning spike")
     else:
-        logging.info("Arch checkpoints will be created by calling spike via gen-ckpt")
-        gen_ckpt_cmd = f"gen-ckpt --binary {binary} --dest-dir {checkpoint_dir} --n-insts {np.array2string(checkpoint_insts, separator=' ', max_line_width=10000000)[1:-1]}"
-        run_cmd(gen_ckpt_cmd, cwd=checkpoint_dir)
+        logging.info("Generating arch checkpoints with spike")
+        gen_checkpoints(binary, start_pc=0x8000_0000, n_insts=checkpoint_insts, ckpt_base_dir=checkpoint_dir, n_harts=n_harts, isa=isa)
 
     # Run each checkpoint in RTL sim and extract perf metrics
     perf_files_exist = all([(c / "perf.csv").exists() for c in checkpoints])
