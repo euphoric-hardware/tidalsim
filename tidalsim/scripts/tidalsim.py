@@ -10,6 +10,7 @@ from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe
 from tidalsim.util.spike_ckpt import *
 from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_to_bbvs, BasicBlocks
 from tidalsim.util.pickle import dump, load
+from tidalsim.modeling.clustering import *
 
 # Runs directory structure
 # dest-dir
@@ -130,20 +131,10 @@ def main():
         logging.info(f"Saving k-means model to {kmeans_file}")
         dump(kmeans, kmeans_file)
 
-    centroids = kmeans.cluster_centers_
-    labels = kmeans.labels_
-
     # Compute which samples are closest to each cluster
-    import numpy as np
-    checkpoint_idxs = []
-    for label_idx in range(centroids.shape[0]):
-        sample_idxes_near_cluster = np.argwhere(labels == label_idx).flatten()
-        samples_near_cluster = matrix[sample_idxes_near_cluster,:]
-        dists_from_centroid = np.linalg.norm(np.subtract(samples_near_cluster, centroids[label_idx]), axis=1)
-        closest_sample_idx = np.argmin(dists_from_centroid)
-        matrix_sample_idx = sample_idxes_near_cluster[closest_sample_idx]
-        checkpoint_idxs.append(matrix_sample_idx)
-    logging.info(f"The samples closest to each cluster centroid are: {checkpoint_idxs}")
+    centroids = kmeans.cluster_centers_
+    checkpoint_idxs = get_closest_samples_to_centroids(centroids, matrix)
+    logging.info(f"The samples closest to each cluster centroid are: {list(checkpoint_idxs)}")
 
     # Figure out the instruction commit points to take checkpoints at
     checkpoint_insts = sorted([idx * args.interval_length for idx in checkpoint_idxs])

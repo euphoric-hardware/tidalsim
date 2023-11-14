@@ -89,7 +89,7 @@ def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, inter
     matrix: List[np.ndarray] = []
     trace_intervals = ichunked(trace, interval_length)
 
-    # Provide some speedup to avoid querying the interval tree too often
+    # Use a cache to avoid querying the interval tree too often, queries should have good locality
     @functools.lru_cache(maxsize=128)
     def lookup_id_from_pc(pc: int) -> int:
         return bb.pc_to_bb_id[pc].pop().data
