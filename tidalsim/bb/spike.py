@@ -1,11 +1,13 @@
 import re
 from typing import Iterator, List, Optional
 from dataclasses import dataclass
+import functools
 
 from intervaltree import IntervalTree, Interval
 from tqdm import tqdm
 import numpy as np
 from more_itertools import ichunked
+from joblib import Parallel, delayed
 
 # Regex patterns to extract instructions or symbols from Spike dump
 instruction_pattern = re.compile(r"core\s*\d: 0x(?P<pc>\w+) \((?P<inst>\w+)\)")
@@ -86,11 +88,19 @@ def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, inter
     n_features = len(bb.pc_to_bb_id)
     matrix: List[np.ndarray] = []
     trace_intervals = ichunked(trace, interval_length)
-    for trace_interval in tqdm(trace_intervals):
+
+    # Provide some speedup to avoid querying the interval tree too often
+    @functools.lru_cache(maxsize=128)
+    def lookup_id_from_pc(pc: int) -> int:
+        return bb.pc_to_bb_id[pc].pop().data
+
+    def embed_interval(interval: Iterator[SpikeTraceEntry]) -> np.ndarray:
         embedding = np.zeros(n_features)
-        for trace_entry in trace_interval:
-            # TODO: could optimize this with LRU memoization to the point query to the intervaltree
-            bb_id = bb.pc_to_bb_id[trace_entry.pc].pop().data
+        for trace_entry in interval:
+            bb_id = lookup_id_from_pc(trace_entry.pc)
             embedding[bb_id] += 1
-        matrix.append(embedding)
+        return embedding
+
+    for trace_interval in tqdm(trace_intervals):
+        matrix.append(embed_interval(trace_interval))
     return np.vstack(matrix)
