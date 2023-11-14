@@ -36,6 +36,8 @@ def main():
     parser.add_argument('--dest-dir', type=str, required=True, help='Directory in which checkpoints are dumped')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
+
+    # Parse args
     binary = Path(args.binary).resolve()
     binary_name = binary.name
     simulator = Path(args.simulator).resolve()
