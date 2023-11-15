@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans
 
 from tidalsim.util.pickle import load
 
-def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int) -> Tuple[np.ndarray, np.ndarray]:
+def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int) -> pd.DataFrame:
     interval_dir = run_dir / f"n_{interval_length}"
     cluster_dir = interval_dir / f"c_{clusters}"
 
@@ -20,41 +20,30 @@ def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int)
 
     # For every centroid, get its IPC
     perf_files = [cluster_dir / "checkpoints" / f"0x80000000.{x*interval_length}" / "perf.csv" for x in checkpoint_idxs]
-    sample_ipc = []
-    for perf_file in perf_files:
+    sample_ipc = np.empty(len(perf_files))
+    for i, perf_file in enumerate(perf_files):
         perf_data = pd.read_csv(perf_file)
+        perf_data['ipc'] = perf_data['instret'] / perf_data['cycles']
         # Skip the first perf metric sample
         # TODO: generalize this with a detailed warmup argument specified in terms of instructions
-        ipc = np.nanmean(perf_data['instret'][1:] / perf_data['cycles'][1:])
-        sample_ipc.append(ipc)
+        ipc = np.nanmean(perf_data['ipc'][1:])
+        sample_ipc[i] = ipc
     logging.info(f"IPC for each centroid: {sample_ipc}")
 
     # Reconstruct the IPC trace of the entire program
     labels = kmeans_model.labels_ # each label maps an interval in the full program trace to its cluster
-    x = np.empty(len(labels)*2)
-    y = np.empty(len(labels)*2)
-    i = 0
-    inst = 0
-    for label in labels:
-        x[i] = inst
-        x[i+1] = inst + interval_length - 1
-        ipc = sample_ipc[label]
-        y[i] = ipc
-        y[i+1] = ipc
-        i += 2
-        inst += interval_length
-    return x, y
+    perf_data = pd.DataFrame({'ipc' : sample_ipc[labels], 'instret': np.repeat(interval_length, len(labels))})
+    perf_data['inst_count'] = np.cumsum(perf_data['instret'].to_numpy())
+    perf_data_new = pd.DataFrame(np.repeat(perf_data.values, 2, axis=0))
+    perf_data_new.columns = perf_data.columns
+    perf_data_new['inst_count'][::2] = perf_data_new['inst_count'][::2]- interval_length
+    return perf_data_new
 
-def parse_reference_perf(perf_csv: Path) -> Tuple[np.ndarray, np.ndarray]:
+def parse_reference_perf(perf_csv: Path, interval_length: int) -> pd.DataFrame:
     perf_data = pd.read_csv(perf_csv)
-    x = np.empty(len(perf_data)*2)
-    y = np.empty(len(perf_data)*2)
-    i = 0
-    inst = 0
-    for cycles in perf_data['cycles']:
-        gold_x.append(i)
-        gold_y.append(1000 / cycles)
-        gold_x.append(i+1000-1)
-        gold_y.append(1000 / cycles)
-        i = i + 1000
-    return x, y
+    perf_data['ipc'] = perf_data['instret'] / perf_data['cycles']
+    perf_data['inst_count'] = np.cumsum(perf_data['instret'].to_numpy())
+    perf_data_new = pd.DataFrame(np.repeat(perf_data.values, 2, axis=0))
+    perf_data_new.columns = perf_data.columns
+    perf_data_new['inst_count'][::2] = perf_data_new['inst_count'][::2]- interval_length
+    return perf_data_new

@@ -4,3 +4,5 @@ __pycache__
 runs
 m5out
 .ipynb_checkpoints
+*.png
+*.pdf
