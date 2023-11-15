@@ -11,6 +11,7 @@ packages = [
 [tool.poetry.scripts]
 gen-ckpt = "tidalsim.scripts.gen_ckpt:main"
 tidalsim = "tidalsim.scripts.tidalsim:main"
+analyze = "tidalsim.scripts.analyze:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"

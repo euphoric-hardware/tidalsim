@@ -129,7 +129,6 @@ def main():
         # I guess it means args.cluters is too high (higher than the rank of the matrix) and thus noisy
         kmeans = KMeans(n_clusters=args.clusters, n_init="auto", verbose=100, random_state=100).fit(matrix)
         logging.info(f"Saving k-means model to {kmeans_file}")
-        dump(kmeans, kmeans_file)
 
     # Compute which samples are closest to each cluster
     centroids = kmeans.cluster_centers_
@@ -139,6 +138,7 @@ def main():
     # Figure out the instruction commit points to take checkpoints at
     checkpoint_insts = sorted([idx * args.interval_length for idx in checkpoint_idxs])
     logging.info(f"Taking checkpoints at instruction points: {checkpoint_insts}")
+    dump((kmeans, checkpoint_idxs, checkpoint_insts), kmeans_file)
 
     # Capture arch checkpoints from spike
     # Cache this result if all the checkpoints are already available
