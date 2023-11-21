@@ -121,7 +121,7 @@ def main():
     keams: KMeans
     if kmeans_file.exists():
         logging.info(f"Loading k-means model from {kmeans_file}")
-        kmeans = load(kmeans_file)
+        kmeans, _, _ = load(kmeans_file)
     else:
         logging.info(f"Performing k-means clustering with {args.clusters} clusters")
         # random_state makes k-means deterministic and cachable, but it is concerning that the labels change
