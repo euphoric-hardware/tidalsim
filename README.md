@@ -15,19 +15,41 @@
     - `cd tools/tidalsim`
     - `poetry install`
     - This will install the `tidalsim` scripts and dependencies into the *conda virtualenv*
-    - Try running `gen-ckpt -h`
-- Generate checkpoints
-    - `gen-ckpt --binary $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add --dest-dir checkpoints --n-insts 0 100 200 300`
-    - `head -n 3 checkpoints/rv64ui-p-add.loadarch/**/loadarch`
-        - This will show the PC and priv mode for each checkpoint taken
-- Run simulation with state injection
+    - Try running `gen-ckpt -h` and `tidalsim -h`
+
+### Manual Checkpoint Generation
+
+- `gen-ckpt --binary $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add --dest-dir checkpoints --n-insts 0 100 200 300`
+    - This will take checkpoints after 0, 100, 200, 300 instructions have committed
+- `head -n 3 checkpoints/rv64ui-p-add.loadarch/*/loadarch`
+    - This will show the PC and priv mode for each checkpoint taken
+- To restart a single checkpoint in RTL simulation
     - `cd sims/vcs`
-    - `make -j16 run-binary-debug LOADMEM=1 STATE_INJECT=1 LOADARCH=../../tools/tidalsim/checkpoints/rv64ui-p-add.loadarch/0x80000000.400 EXTRA_SIM_FLAGS="+perf-sample-period=100 +perf-file=perf.csv +max-instructions=1000"`
+    - `make run-binary LOADMEM=1 STATE_INJECT=1 LOADARCH=checkpoints/rv64ui-p-add.loadarch/0x80000000.100 EXTRA_SIM_FLAGS="+perf-sample-period=100 +perf-file=perf.csv +max-instructions=1000"`
         - `+perf-sample-period` is the window for reporting performance statistics (in instructions)
         - `+perf-file` is where performance statistics are dumped to (CSV format)
         - `+max-instructions` terminates the simulation after the specified number of instructions have committed
 
-## Setup
+### TidalSim Flow
+
+- Build a RTL simulator with state injection support
+    - `cd sims/vcs`
+    - `make default STATE_INJECT=1`
+- Run simulation with state injection
+    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-RocketConfig --chipyard-root . --dest-dir runs`
+    - This will run sampled simulation and store the results in the `runs` directory
+    - Run `head runs/hello.riscv*/**/perf.csv` to see the performance logs for each sample replayed in RTL simulation
+- Collect a reference performance trace
+    - `cd sims/vcs`
+    - `make run-binary LOADMEM=1 STATE_INJECT=1 BINARY=../../tests/hello.riscv EXTRA_SIM_FLAGS="+perf-sample-period=100 +perf-file=reference_perf.csv"`
+
+---
+
+---
+
+## Old / Archive
+
+### Setup
 
 - `git submodule update --init --recursive .`
 - `git apply --directory embench-iot/ embench.patch` (make embench compile for rv64gc)
@@ -52,8 +74,6 @@
     - `make -j8 && make install`
 - `make embench-spike`: runs all embench binaries on spike and saves their commit logs in `runs`
 - `make embench-gem5`: runs all embench binaries on gem5 and saves their stats.txt files in `runs`
-
-## Details
 
 ### gem5 (old)
 
