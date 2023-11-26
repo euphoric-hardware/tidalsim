@@ -24,3 +24,9 @@ def run_cmd_capture(cmd: str, cwd: Path) -> str:
     assert result.returncode == 0, f"{cmd} failed with returncode {result.returncode} and stdout {stdout}"
     return stdout
 
+def run_cmd_pipe_stdout(cmd: str, cwd: Path, stdout: Path) -> subprocess.CompletedProcess:
+    logging.info(f"Running \"{cmd}\" and redirecting stdout to {stdout}")
+    with stdout.open('w') as stdout_file:
+        result = subprocess.run(cmd, shell=True, stdout=stdout_file, cwd=cwd)
+        assert result.returncode == 0, f"{cmd} failed with returncode {result.returncode}"
+        return result

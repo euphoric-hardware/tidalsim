@@ -9,13 +9,11 @@ import numpy as np
 from more_itertools import ichunked
 from joblib import Parallel, delayed
 
+from tidalsim.bb.common import BasicBlocks, control_insts 
+
 # Regex patterns to extract instructions or symbols from Spike dump
 instruction_pattern = re.compile(r"core\s*\d: 0x(?P<pc>\w+) \((?P<inst>\w+)\)")
 name_pattern = re.compile(r"core\s*\d:\s*>>>>\s*(?P<name>\w+)")
-
-@dataclass
-class BasicBlocks:
-    pc_to_bb_id: IntervalTree
 
 @dataclass
 class SpikeTraceEntry:
@@ -31,19 +29,6 @@ def parse_spike_log(log_lines: Iterator[str]) -> Iterator[SpikeTraceEntry]:
         else:
             # yield SpikeTraceEntry(int(s[2][2:], 16), int(s[3][3:-1], 16), s[4])
             yield SpikeTraceEntry(int(s[2][2:], 16), s[4])
-
-# RISC-V Psuedoinstructions: https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#pseudoinstructions
-branches = [
-        # RV64I branches
-        'beq', 'bge', 'bgeu', 'blt', 'bltu', 'bne',
-        # RV64C branches
-        'c.beqz', 'c.bnez',
-        # Psuedo instructions
-        'beqz', 'bnez', 'blez', 'bgez', 'bltz', 'bgtz', 'bgt', 'ble', 'bgtu', 'bleu'
-        ]
-jumps = ['j', 'jal', 'jr', 'jalr', 'ret', 'call', 'c.j', 'c.jal', 'c.jr', 'c.jalr']
-syscalls = ['ecall', 'ebreak', 'mret', 'sret', 'uret']
-control_insts = set(branches + jumps + syscalls)
 
 def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     # Make initial pass through the Spike dump
