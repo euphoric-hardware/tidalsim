@@ -1,6 +1,7 @@
 from intervaltree import Interval, IntervalTree
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Match, TextIO
+from itertools import count
 from tqdm import tqdm
 import re
 import sys
@@ -25,6 +26,8 @@ class ObjdumpInstrEntry:
     instr: str
     target: Optional[int] = None
     annotation: Optional[str] = None
+
+next_bbid = count(start=0, step=1).__next__
 
 def get_next_pc(instr: ObjdumpInstrEntry) -> int:
     increment = len(instr.instr_bits)//2
@@ -99,15 +102,23 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
             
         return (None, None)
 
+    # TODO: REMOVE LATER
+    basic_blocks.add(Interval(0, 0x8000_0000, next_bbid()))
+
     while func_start_pc := find_next_func(f):
         func_end_pc = parse_func(f)
-        basic_blocks.add(Interval(func_start_pc, func_end_pc))
+        basic_blocks.add(Interval(func_start_pc, func_end_pc, next_bbid()))
 
     logging.info(f"Found {len(all_control_instrs)} control instructions")
     logging.info(f"No target was identified for {no_target_identified} instructions")
 
     return all_control_instrs, basic_blocks
-        
+
+def get_split_bbid(iv: Interval, islower: bool) -> int:
+    if islower:
+        return iv.data
+    else:
+        return next_bbid()
 
 # Splitting logic
 def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial_basic_blocks: IntervalTree) -> IntervalTree:
@@ -115,10 +126,10 @@ def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial
     all_basic_blocks = initial_basic_blocks
 
     def start_block_at(pc: int) -> None:
-        all_basic_blocks.slice(pc)
+        all_basic_blocks.slice(pc, get_split_bbid)
 
     def end_block_after(control_instr: ObjdumpInstrEntry) -> None:
-        all_basic_blocks.slice(get_next_pc(control_instr))
+        all_basic_blocks.slice(get_next_pc(control_instr), get_split_bbid)
 
     for control_instr in tqdm(all_control_instrs):
         if control_instr.target is None:
