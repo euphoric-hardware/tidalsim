@@ -6,9 +6,10 @@ import sys
 from joblib import Parallel, delayed
 import logging
 
-from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe
+from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe, run_cmd_pipe_stdout
 from tidalsim.util.spike_ckpt import *
 from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_to_bbvs, BasicBlocks
+from tidalsim.bb.elf import objdump_to_bbs
 from tidalsim.util.pickle import dump, load
 from tidalsim.modeling.clustering import *
 
@@ -36,6 +37,7 @@ def main():
     parser.add_argument('--chipyard-root', type=str, required=True, help='Path to the base of Chipyard')
     parser.add_argument('--dest-dir', type=str, required=True, help='Directory in which checkpoints are dumped')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('-e', '--elf', action='store_true', help='Run ELF-based basic block extraction')
     args = parser.parse_args()
 
     # Parse args
@@ -72,20 +74,45 @@ def main():
         logging.info(f"Spike trace doesn't exist at {spike_trace_file}, running spike")
         spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, extra_args = "-l")
         run_cmd_pipe(spike_cmd, cwd=dest_dir, stderr=spike_trace_file)
-
-    # Construct basic blocks from spike commit log if it doesn't already exist
+    
     bb: BasicBlocks
-    spike_bb_file = binary_dir / "spike.bb"
-    if spike_bb_file.exists():
-        logging.info(f"Spike commit log based BB extraction already run, loading results from {spike_bb_file}")
-        bb = load(spike_bb_file)
+
+    if args.elf:
+        # Construct basic blocks from elf if it doesn't already exist
+        elf_bb_file = binary_dir / "elf.bb"
+        if elf_bb_file.exists():
+            logging.info(f"ELF-based BB extraction already run, loading results from {elf_bb_file}")
+            bb = load(elf_bb_file)
+        else:
+            logging.info(f"Running ELF-based BB extraction")
+            # Check if objdump file exists, else run objdump
+            objdump_file = binary_dir / f"{binary_name}.objdump"
+            if objdump_file.exists():
+                logging.info(f"Using objdump file found at {objdump_file}")
+            else:
+                objdump_cmd = f"riscv64-unknown-elf-objdump -d {str(binary)}"
+                logging.info(f"Running {objdump_cmd} to generate objdump from riscv binary")
+                run_cmd_pipe_stdout(objdump_cmd, cwd=dest_dir, stdout=objdump_file)
+
+            with objdump_file.open('r') as f:
+                bb = objdump_to_bbs(f)
+                dump(bb, elf_bb_file)
+            logging.info(f"ELF-based BB extraction results saved to {elf_bb_file}")
+
     else:
-        logging.info(f"Running spike commit log based BB extraction")
-        with spike_trace_file.open('r') as f:
-            spike_trace_log = parse_spike_log(f)
-            bb = spike_trace_to_bbs(spike_trace_log)
-            dump(bb, spike_bb_file)
-        logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
+        # Construct basic blocks from spike commit log if it doesn't already exist
+        spike_bb_file = binary_dir / "spike.bb"
+        if spike_bb_file.exists():
+            logging.info(f"Spike commit log based BB extraction already run, loading results from {spike_bb_file}")
+            bb = load(spike_bb_file)
+        else:
+            logging.info(f"Running spike commit log based BB extraction")
+            with spike_trace_file.open('r') as f:
+                spike_trace_log = parse_spike_log(f)
+                bb = spike_trace_to_bbs(spike_trace_log)
+                dump(bb, spike_bb_file)
+            logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
+        
     logging.debug(f"Basic blocks: {bb}")
 
     # Given an interval length, compute the BBV-based interval embedding
