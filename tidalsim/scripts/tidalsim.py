@@ -116,7 +116,12 @@ def main():
     logging.debug(f"Basic blocks: {bb}")
 
     # Given an interval length, compute the BBV-based interval embedding
-    embedding_dir = binary_dir / f"n_{args.interval_length}"
+    
+    if args.elf:
+        embedding_dir = binary_dir / f"n_{args.interval_length}_elf"
+    else:
+        embedding_dir = binary_dir / f"n_{args.interval_length}_spike"
+    
     embedding_dir.mkdir(exist_ok=True)
     matrix_file = embedding_dir / "bbv.matrix"
     matrix: np.ndarray

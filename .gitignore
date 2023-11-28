@@ -6,3 +6,4 @@ m5out
 .ipynb_checkpoints
 *.png
 *.pdf
+.vscode

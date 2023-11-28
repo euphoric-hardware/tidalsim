@@ -8,8 +8,8 @@ from sklearn.cluster import KMeans
 
 from tidalsim.util.pickle import load
 
-def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int) -> pd.DataFrame:
-    interval_dir = run_dir / f"n_{interval_length}"
+def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int, elf: bool) -> pd.DataFrame:
+    interval_dir = run_dir / f"n_{interval_length}_{'elf' if elf else 'spike'}"
     cluster_dir = interval_dir / f"c_{clusters}"
 
     kmeans_model_file = cluster_dir / "kmeans.model"
