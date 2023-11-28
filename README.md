@@ -41,7 +41,7 @@
     - Run `head runs/hello.riscv*/**/perf.csv` to see the performance logs for each sample replayed in RTL simulation
 - Collect a reference performance trace
     - `cd sims/vcs`
-    - `make run-binary LOADMEM=1 STATE_INJECT=1 BINARY=../../tests/hello.riscv EXTRA_SIM_FLAGS="+perf-sample-period=100 +perf-file=reference_perf.csv"`
+    - `make run-binary LOADMEM=1 STATE_INJECT=1 BINARY=../../tests/hello.riscv EXTRA_SIM_FLAGS="+perf-sample-period=1000 +perf-file=reference_perf.csv"`
 
 ---
 
