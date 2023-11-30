@@ -5,6 +5,7 @@ from typing import List
 
 class EmbeddingSchema(pa.DataFrameModel):
     instret: Series[int]
+    inst_count: Series[int]
     embedding: Series[Object]
 
 class ClusteringSchema(EmbeddingSchema, pa.DataFrameModel):

@@ -25,5 +25,7 @@ class TestBBVEmbedding:
                 np.array([0., 1.]),
                 np.array([0.5, 0.5]),
                 np.array([1., 0.])
-            ]})
+            ],
+            'inst_count': [2, 4, 6, 7]
+        })
         assert ref.equals(df)

@@ -86,10 +86,11 @@ def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, inter
     # Group the trace into intervals of [interval_length] instructions
     trace_intervals = ichunked(trace, interval_length)
     # For each interval, add the embedding and # of insts to the dataframe
-    df_list: List[Tuple[int, np.ndarray]] = []
+    df_list: List[Tuple[int, np.ndarray, int]] = []
     for trace_interval in tqdm(trace_intervals):
         embedding, instret = embed_interval(trace_interval)
         # Normalize the embedding by the number of instructions in the interval
-        df_list.append((instret, np.divide(embedding, instret)))
-    df = DataFrame[EmbeddingSchema](df_list, columns=['instret', 'embedding'])
+        df_list.append((instret, np.divide(embedding, instret), 0))
+    df = DataFrame[EmbeddingSchema](df_list, columns=['instret', 'embedding', 'inst_count'])
+    df['inst_count'] = np.cumsum(df['instret'].to_numpy())
     return df

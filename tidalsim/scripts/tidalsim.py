@@ -5,6 +5,9 @@ import stat
 import sys
 from joblib import Parallel, delayed
 import logging
+import pdb
+from pandera.typing import DataFrame
+import numpy as np
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe, run_cmd_pipe_stdout
 from tidalsim.util.spike_ckpt import *
@@ -12,6 +15,7 @@ from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_t
 from tidalsim.bb.elf import objdump_to_bbs
 from tidalsim.util.pickle import dump, load
 from tidalsim.modeling.clustering import *
+from tidalsim.modeling.schemas import *
 
 # Runs directory structure
 # dest-dir
@@ -137,44 +141,48 @@ def main():
     logging.info(f"BBV embedding dataframe:\n{embedding_df}")
     logging.info(f"BBV embedding # of features: {embedding_df['embedding'][0].size}")
 
-    sys.exit(1)
-
     # Perform clustering and select centroids
     cluster_dir = embedding_dir / f"c_{args.clusters}"
     cluster_dir.mkdir(exist_ok=True)
     logging.info(f"Storing clustering for clusters = {args.clusters} in: {cluster_dir}")
 
-    from sklearn.preprocessing import normalize
-    logging.info(f"Normalizing embedding matrix")
-    matrix = normalize(matrix)
-    logging.debug(f"Normed embedding matrix:\n{matrix}")
-
+    # TODO: standardize features and see if that makes a difference for clustering
     from sklearn.cluster import KMeans
-    kmeans_file = cluster_dir / "kmeans.model"
+    kmeans_file = cluster_dir / "kmeans_model.pickle"
     keams: KMeans
     if kmeans_file.exists():
         logging.info(f"Loading k-means model from {kmeans_file}")
-        kmeans, _, _ = load(kmeans_file)
+        kmeans = load(kmeans_file)
     else:
         logging.info(f"Performing k-means clustering with {args.clusters} clusters")
-        # random_state makes k-means deterministic and cachable, but it is concerning that the labels change
-        # a lot depending on random_state, TODO: investigate this in detail
-        # I guess it means args.cluters is too high (higher than the rank of the matrix) and thus noisy
+        matrix = np.vstack(embedding_df['embedding'].to_numpy()) # type: ignore
         kmeans = KMeans(n_clusters=args.clusters, n_init="auto", verbose=100, random_state=100).fit(matrix)
         logging.info(f"Saving k-means model to {kmeans_file}")
+        dump(kmeans, kmeans_file)
 
-    # Compute which samples are closest to each cluster
-    centroids = kmeans.cluster_centers_
-    checkpoint_idxs = get_closest_samples_to_centroids(centroids, matrix)
-    logging.info(f"The samples closest to each cluster centroid are: {list(checkpoint_idxs)}")
+    # Augment the dataframe with the cluster label, distances, and whether a given sample should be simulated
+    clustering_df_file = cluster_dir / "clustering_df.pickle"
+    clustering_df: DataFrame[ClusteringSchema]
+    if clustering_df_file.exists():
+        logging.info(f"Loading clustering DF from {clustering_df_file}")
+        clustering_df = load(clustering_df_file)
+    else:
+        clustering_df = embedding_df.assign(
+            cluster_id = kmeans.labels_,
+            dist_to_centroid = lambda x: np.linalg.norm(np.vstack(embedding_df['embedding'].to_numpy()) - kmeans.cluster_centers_[x['cluster_id']], axis=1), # type: ignore
+            chosen_for_rtl_sim = lambda x: x.groupby('cluster_id')['dist_to_centroid'].transform(lambda dists: dists == np.min(dists))
+        )
+        dump(clustering_df, clustering_df_file)
+        logging.info(f"Saving clustering DF to {clustering_df_file}")
 
-    # Figure out the instruction commit points to take checkpoints at
-    checkpoint_insts = sorted([idx * args.interval_length for idx in checkpoint_idxs])
-    logging.info(f"Taking checkpoints at instruction points: {checkpoint_insts}")
-    dump((kmeans, checkpoint_idxs, checkpoint_insts), kmeans_file)
+    logging.info(f"Clustering DF\n{clustering_df}")
+
+    to_simulate = clustering_df.loc[clustering_df['chosen_for_rtl_sim'] == True].groupby('cluster_id', as_index=False).nth(0)
+    logging.info(f"The following rows are closest to the cluster centroids\n{to_simulate}")
 
     # Capture arch checkpoints from spike
     # Cache this result if all the checkpoints are already available
+    checkpoint_insts: List[int] = to_simulate['inst_count'].tolist()
     checkpoint_dir = cluster_dir / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True)
     checkpoints = [checkpoint_dir / f"0x80000000.{i}" for i in checkpoint_insts]

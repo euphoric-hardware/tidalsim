@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 from sklearn.metrics import pairwise_distances_argmin_min
 
@@ -15,6 +17,6 @@ def get_closest_sample_to_centroid(centroid: np.ndarray, matrix: np.ndarray, lab
 
 # Returns a vector (dim: n_centroids) of the indices of the [samples] matrix (dim: n_samples X n_features)
 # that are the closest to that centroid index.
-def get_closest_samples_to_centroids(centroids: np.ndarray, samples: np.ndarray) -> np.ndarray:
+def get_closest_samples_to_centroids(centroids: np.ndarray, samples: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     argmin, distances = pairwise_distances_argmin_min(X = centroids, Y = samples)
-    return argmin
+    return argmin, distances
