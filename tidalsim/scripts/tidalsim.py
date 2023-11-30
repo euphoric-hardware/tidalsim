@@ -79,7 +79,7 @@ def main():
 
     if args.elf:
         # Construct basic blocks from elf if it doesn't already exist
-        elf_bb_file = binary_dir / "elf.bb"
+        elf_bb_file = binary_dir / "elf_basicblocks.pickle"
         if elf_bb_file.exists():
             logging.info(f"ELF-based BB extraction already run, loading results from {elf_bb_file}")
             bb = load(elf_bb_file)
@@ -98,10 +98,9 @@ def main():
                 bb = objdump_to_bbs(f)
                 dump(bb, elf_bb_file)
             logging.info(f"ELF-based BB extraction results saved to {elf_bb_file}")
-
     else:
         # Construct basic blocks from spike commit log if it doesn't already exist
-        spike_bb_file = binary_dir / "spike.bb"
+        spike_bb_file = binary_dir / "spike_basicblocks.pickle"
         if spike_bb_file.exists():
             logging.info(f"Spike commit log based BB extraction already run, loading results from {spike_bb_file}")
             bb = load(spike_bb_file)
@@ -123,20 +122,22 @@ def main():
         embedding_dir = binary_dir / f"n_{args.interval_length}_spike"
 
     embedding_dir.mkdir(exist_ok=True)
-    matrix_file = embedding_dir / "bbv.matrix"
-    matrix: np.ndarray
-    if matrix_file.exists():
-        logging.info(f"BBV embedding already computed in {matrix_file}, loading")
-        matrix = load(matrix_file)
+    embedding_df_file = embedding_dir / "embedding_df.pickle"
+    embedding_df: DataFrame[EmbeddingSchema]
+    if embedding_df_file.exists():
+        logging.info(f"BBV embedding dataframe exists in {embedding_df_file}, loading")
+        embedding_df = load(embedding_df_file)
     else:
-        logging.info(f"Computing BBV embedding in {matrix_file}")
+        logging.info(f"Computing BBV embedding dataframe")
         with spike_trace_file.open('r') as spike_trace:
             spike_trace_log = parse_spike_log(spike_trace)
-            matrix = spike_trace_to_bbvs(spike_trace_log, bb, args.interval_length)
-            dump(matrix, matrix_file)
-        logging.info(f"Saving BBV embedding to {matrix_file}")
-    logging.debug(f"Embedding matrix:\n{matrix}")
-    logging.info(f"Embedding matrix shape: {matrix.shape}")
+            embedding_df = spike_trace_to_bbvs(spike_trace_log, bb, args.interval_length)
+            dump(embedding_df, embedding_df_file)
+        logging.info(f"Saving BBV embedding dataframe to {embedding_df_file}")
+    logging.info(f"BBV embedding dataframe:\n{embedding_df}")
+    logging.info(f"BBV embedding # of features: {embedding_df['embedding'][0].size}")
+
+    sys.exit(1)
 
     # Perform clustering and select centroids
     cluster_dir = embedding_dir / f"c_{args.clusters}"
