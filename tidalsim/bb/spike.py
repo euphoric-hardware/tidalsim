@@ -1,5 +1,4 @@
-import re
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Tuple
 from dataclasses import dataclass
 import functools
 
@@ -7,13 +6,11 @@ from intervaltree import IntervalTree, Interval
 from tqdm import tqdm
 import numpy as np
 from more_itertools import ichunked
-from joblib import Parallel, delayed
+import pandas as pd
+from pandera.typing import DataFrame
 
-from tidalsim.bb.common import BasicBlocks, control_insts 
-
-# Regex patterns to extract instructions or symbols from Spike dump
-instruction_pattern = re.compile(r"core\s*\d: 0x(?P<pc>\w+) \((?P<inst>\w+)\)")
-name_pattern = re.compile(r"core\s*\d:\s*>>>>\s*(?P<name>\w+)")
+from tidalsim.bb.common import BasicBlocks, control_insts
+from tidalsim.modeling.schemas import *
 
 @dataclass
 class SpikeTraceEntry:
@@ -66,26 +63,33 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
         id += 1
     return BasicBlocks(pc_to_bb_id=unique_intervals)
 
-def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int) -> np.ndarray:
-    # Dimensions of matrix
+def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int) -> DataFrame[EmbeddingSchema]:
+    # Dimensions of dataframe
     # # rows = # of intervals = ceil( (length of trace) / interval_length )
     # # cols = # of features = # of elements in the intervaltree
     n_features = len(bb.pc_to_bb_id)
-    matrix: List[np.ndarray] = []
-    trace_intervals = ichunked(trace, interval_length)
 
     # Use a cache to avoid querying the interval tree too often, queries should have good locality
     @functools.lru_cache(maxsize=128)
     def lookup_id_from_pc(pc: int) -> int:
         return bb.pc_to_bb_id[pc].pop().data
 
-    def embed_interval(interval: Iterator[SpikeTraceEntry]) -> np.ndarray:
+    def embed_interval(interval: Iterator[SpikeTraceEntry]) -> Tuple[np.ndarray, int]:
+        instret = 0
         embedding = np.zeros(n_features)
         for trace_entry in interval:
             bb_id = lookup_id_from_pc(trace_entry.pc)
             embedding[bb_id] += 1
-        return embedding
+            instret += 1
+        return embedding, instret
 
+    # Group the trace into intervals of [interval_length] instructions
+    trace_intervals = ichunked(trace, interval_length)
+    # For each interval, add the embedding and # of insts to the dataframe
+    df_list: List[Tuple[int, np.ndarray]] = []
     for trace_interval in tqdm(trace_intervals):
-        matrix.append(embed_interval(trace_interval))
-    return np.vstack(matrix)
+        embedding, instret = embed_interval(trace_interval)
+        # Normalize the embedding by the number of instructions in the interval
+        df_list.append((instret, np.divide(embedding, instret)))
+    df = DataFrame[EmbeddingSchema](df_list, columns=['instret', 'embedding'])
+    return df

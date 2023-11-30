@@ -74,7 +74,7 @@ def main():
         logging.info(f"Spike trace doesn't exist at {spike_trace_file}, running spike")
         spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, extra_args = "-l")
         run_cmd_pipe(spike_cmd, cwd=dest_dir, stderr=spike_trace_file)
-    
+
     bb: BasicBlocks
 
     if args.elf:
@@ -112,16 +112,16 @@ def main():
                 bb = spike_trace_to_bbs(spike_trace_log)
                 dump(bb, spike_bb_file)
             logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
-        
+
     logging.debug(f"Basic blocks: {bb}")
 
     # Given an interval length, compute the BBV-based interval embedding
-    
+
     if args.elf:
         embedding_dir = binary_dir / f"n_{args.interval_length}_elf"
     else:
         embedding_dir = binary_dir / f"n_{args.interval_length}_spike"
-    
+
     embedding_dir.mkdir(exist_ok=True)
     matrix_file = embedding_dir / "bbv.matrix"
     matrix: np.ndarray

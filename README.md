@@ -5,6 +5,8 @@
 - Install `poetry`
     - `curl -sSL https://install.python-poetry.org | POETRY_HOME=/nscratch/<YOUR USERNAME>/poetry python3 -`
     - Add `POETRY_HOME/bin` to your `$PATH`
+    - Add `export PYTHON_KEYRING_BACKEND="keyring.backends.null.Keyring"` to your `~/.bashrc`
+        - There is a [bug with an older version of pip](https://github.com/python-poetry/poetry/issues/3365)
 - Clone Chipyard and use the `multi-level-sim` branch
 - Run Chipyard setup as usual
     - `./build-setup.sh -s 4 -s 5 -s 6 -s 7 -s 8 -s 9 riscv-tools`
