@@ -17,13 +17,6 @@ from tidalsim.util.pickle import dump, load
 from tidalsim.modeling.clustering import *
 from tidalsim.modeling.schemas import *
 
-# Runs directory structure
-# dest-dir
-#   - binary_name-hash
-#     - spike.trace (full spike commit log)
-#     - spike.bb (pickled BasicBlocks extracted from spike trace)
-#     - elf.bb (pickled BasicBlocks extracted from elf analysis)
-
 def main():
     logging.basicConfig(format='%(levelname)s - %(filename)s:%(lineno)d - %(message)s', level=logging.INFO)
 

@@ -15,4 +15,10 @@ class ClusteringSchema(EmbeddingSchema, pa.DataFrameModel):
 
 class EstimatedPerfSchema(ClusteringSchema, pa.DataFrameModel):
     est_cycles: Series[int]
-    est_ipc: Series[int]
+    est_ipc: Series[float]
+
+class GoldenPerfSchema(pa.DataFrameModel):
+    cycles: Series[int]
+    instret: Series[int]
+    inst_count: Series[int]
+    ipc: Series[float]
