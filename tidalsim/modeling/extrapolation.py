@@ -17,14 +17,15 @@ def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int,
     simulated_points = clustering_df.loc[clustering_df['chosen_for_rtl_sim'] == True].groupby('cluster_id', as_index=False).nth(0).sort_values('cluster_id')
     ipcs = []
     for index, row in simulated_points.iterrows():
-        perf_file = cluster_dir / "checkpoints" / f"0x80000000.{row['inst_count']}" / "perf.csv"
+        perf_file = cluster_dir / "checkpoints" / f"0x80000000.{row['inst_start']}" / "perf.csv"
         perf_data = pd.read_csv(perf_file)
         perf_data['ipc'] = perf_data['instret'] / perf_data['cycles']
         perf_data['inst_count'] = np.cumsum(perf_data['instret'])
         # Find the first row where more than [detailed_warmup_insts] have elapsed, and only begin tracking IPC from that row onwards
         # mypy can't infer the type of [start_point] correctly
         start_point = (perf_data['inst_count'] > detailed_warmup_insts).idxmax()
-        ipc = np.nanmean(perf_data[start_point:]['ipc'])
+        # mypy can't say that perf_data[start_point:] is a legal slice
+        ipc: float = np.nanmean(perf_data[start_point:]['ipc'])  # type: ignore
         ipcs.append(ipc)
 
     estimated_perf_df: DataFrame[EstimatedPerfSchema] = clustering_df.assign(
@@ -35,7 +36,7 @@ def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int,
 
 def parse_golden_perf(perf_csv: Path) -> DataFrame[GoldenPerfSchema]:
     perf_data = pd.read_csv(perf_csv)
-    golden_perf_df = perf_data.assign(
+    golden_perf_df: DataFrame[GoldenPerfSchema] = perf_data.assign(
         ipc = lambda x: x['instret'] / x['cycles'],
         inst_count = lambda x: np.cumsum(x['instret'].to_numpy())
     )

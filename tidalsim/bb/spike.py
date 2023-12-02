@@ -8,6 +8,7 @@ import numpy as np
 from more_itertools import ichunked
 import pandas as pd
 from pandera.typing import DataFrame
+from sklearn.preprocessing import normalize
 
 from tidalsim.bb.common import BasicBlocks, control_insts
 from tidalsim.modeling.schemas import *
@@ -63,7 +64,7 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
         id += 1
     return BasicBlocks(pc_to_bb_id=unique_intervals)
 
-def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int) -> DataFrame[EmbeddingSchema]:
+def spike_trace_to_embedding_df(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int) -> DataFrame[EmbeddingSchema]:
     # Dimensions of dataframe
     # # rows = # of intervals = ceil( (length of trace) / interval_length )
     # # cols = # of features = # of elements in the intervaltree
@@ -85,12 +86,15 @@ def spike_trace_to_bbvs(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, inter
 
     # Group the trace into intervals of [interval_length] instructions
     trace_intervals = ichunked(trace, interval_length)
-    # For each interval, add the embedding and # of insts to the dataframe
-    df_list: List[Tuple[int, np.ndarray, int]] = []
+    df_list: List[Tuple[int, int, int, np.ndarray]] = []
+    total_inst_count = 0
     for trace_interval in tqdm(trace_intervals):
         embedding, instret = embed_interval(trace_interval)
-        # Normalize the embedding by the number of instructions in the interval
-        df_list.append((instret, np.divide(embedding, instret), 0))
-    df = DataFrame[EmbeddingSchema](df_list, columns=['instret', 'embedding', 'inst_count'])
-    df['inst_count'] = np.cumsum(df['instret'].to_numpy())
+        # Embed each basic block by the *fraction* of the interval that ran that basic block
+        embedding = np.divide(embedding, instret)
+        # Furthermore, make sure the embedding vector has unit L2 norm
+        embedding = np.divide(embedding, np.linalg.norm(embedding))
+        df_list.append((instret, total_inst_count + instret, total_inst_count, embedding))
+        total_inst_count += instret
+    df = DataFrame[EmbeddingSchema](df_list, columns=['instret', 'inst_count', 'inst_start', 'embedding'])
     return df

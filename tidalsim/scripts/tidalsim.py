@@ -11,7 +11,7 @@ import numpy as np
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe, run_cmd_pipe_stdout
 from tidalsim.util.spike_ckpt import *
-from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_to_bbvs, BasicBlocks
+from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_to_embedding_df, BasicBlocks
 from tidalsim.bb.elf import objdump_to_bbs
 from tidalsim.util.pickle import dump, load
 from tidalsim.modeling.clustering import *
@@ -128,7 +128,7 @@ def main():
         logging.info(f"Computing BBV embedding dataframe")
         with spike_trace_file.open('r') as spike_trace:
             spike_trace_log = parse_spike_log(spike_trace)
-            embedding_df = spike_trace_to_bbvs(spike_trace_log, bb, args.interval_length)
+            embedding_df = spike_trace_to_embedding_df(spike_trace_log, bb, args.interval_length)
             dump(embedding_df, embedding_df_file)
         logging.info(f"Saving BBV embedding dataframe to {embedding_df_file}")
     logging.info(f"BBV embedding dataframe:\n{embedding_df}")
@@ -175,7 +175,7 @@ def main():
 
     # Capture arch checkpoints from spike
     # Cache this result if all the checkpoints are already available
-    checkpoint_insts: List[int] = to_simulate['inst_count'].tolist()
+    checkpoint_insts: List[int] = to_simulate['inst_start'].tolist()
     checkpoint_dir = cluster_dir / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True)
     checkpoints = [checkpoint_dir / f"0x80000000.{i}" for i in checkpoint_insts]
