@@ -17,6 +17,27 @@ from tidalsim.util.pickle import dump, load
 from tidalsim.modeling.clustering import *
 from tidalsim.modeling.schemas import *
 
+
+def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_instructions: Optional[int], chipyard_root: Path, binary: Path, loadarch: Path, cwd: Path, timeout_cycles: int = 10_000_000) -> None:
+    max_insts = f"+max-instructions={max_instructions}" if max_instructions is not None else ""
+    # +no_hart0_msip = with loadarch, the target should begin execution immediately without
+    #   an interrupt required to jump out of the bootrom
+    rtl_sim_cmd = f"{simulator} \
+            +permissive \
+            +dramsim \
+            +dramsim_ini_dir={chipyard_root.resolve()}/generators/testchipip/src/main/resources/dramsim2_ini \
+            +no_hart0_msip \
+            +ntb_random_seed_automatic \
+            +max-cycles={timeout_cycles} \
+            +perf-sample-period={perf_sample_period} \
+            +perf-file={perf_file.resolve()} \
+            {max_insts} \
+            +loadmem={binary.resolve()} \
+            +loadarch={loadarch.resolve()} \
+            +permissive-off \
+            {binary.resolve()}"
+    run_cmd(rtl_sim_cmd, cwd)
+
 def main():
     logging.basicConfig(format='%(levelname)s - %(filename)s:%(lineno)d - %(message)s', level=logging.INFO)
 
@@ -35,6 +56,7 @@ def main():
     parser.add_argument('--dest-dir', type=str, required=True, help='Directory in which checkpoints are dumped')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('-e', '--elf', action='store_true', help='Run ELF-based basic block extraction')
+    parser.add_argument('--golden-sim', action='store_true', help='Run full RTL simulation of the binary and save performance metrics')
     args = parser.parse_args()
 
     # Parse args
@@ -71,6 +93,30 @@ def main():
         logging.info(f"Spike trace doesn't exist at {spike_trace_file}, running spike")
         spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, extra_args = "-l")
         run_cmd_pipe(spike_cmd, cwd=dest_dir, stderr=spike_trace_file)
+
+    if args.golden_sim:
+        golden_sim_dir = binary_dir / "golden"
+        golden_sim_dir.mkdir(exist_ok=True)
+        golden_perf_file = golden_sim_dir / 'perf.csv'
+        logging.info(f"Running full RTL simulation of {binary} in {golden_sim_dir}")
+
+        if golden_perf_file.exists() and golden_perf_file.is_file():
+            logging.info(f"Golden performance results already exist in {golden_sim_dir}, not-rerunning RTL simulation")
+        else:
+            logging.info(f"Taking spike checkpoint at instruction 0 to inject into RTL simulation")
+            gen_checkpoints(binary, start_pc=0x8000_0000, n_insts=[0], ckpt_base_dir=golden_sim_dir, n_harts=n_harts, isa=isa)
+            inst_0_ckpt = golden_sim_dir / "0x80000000.0"
+            run_rtl_sim(
+                simulator=simulator,
+                perf_file=golden_perf_file,
+                perf_sample_period=args.interval_length,
+                max_instructions=None,
+                chipyard_root=chipyard_root,
+                binary=(inst_0_ckpt / 'mem.elf'),
+                loadarch=(inst_0_ckpt / 'loadarch'),
+                cwd=golden_sim_dir
+            )
+        sys.exit(0)
 
     bb: BasicBlocks
 
@@ -192,20 +238,15 @@ def main():
         logging.info("Performance metrics for checkpoints already collected, skipping RTL simulation")
     else:
         logging.info("Running parallel RTL simulations to collect performance metrics for checkpoints")
-        def run_rtl_sim(checkpoint_dir: Path) -> None:
-            rtl_sim_cmd = f"{simulator} \
-                    +permissive \
-                    +dramsim \
-                    +dramsim_ini_dir={chipyard_root}/generators/testchipip/src/main/resources/dramsim2_ini \
-                    +max-cycles=10000000 +no_hart0_msip \
-                    +perf-sample-period={int(args.interval_length / 10)} \
-                    +perf-file={(checkpoint_dir / 'perf.csv').resolve()} \
-                    +max-instructions={args.interval_length} \
-                    +ntb_random_seed_automatic \
-                    +loadmem={checkpoint_dir / 'mem.elf'} \
-                    +loadarch={checkpoint_dir / 'loadarch'} \
-                    +permissive-off \
-                    {checkpoint_dir / 'mem.elf'}"
-                    # +verbose \
-            run_cmd(rtl_sim_cmd, cwd=checkpoint_dir)
-        Parallel(n_jobs=-1)(delayed(run_rtl_sim)(checkpoint) for checkpoint in checkpoints)
+        def run_checkpoint_rtl_sim(checkpoint_dir: Path) -> None:
+            run_rtl_sim(
+                simulator=simulator,
+                perf_file=(checkpoint_dir / 'perf.csv'),
+                perf_sample_period=int(args.interval_length / 10),
+                max_instructions=args.interval_length,
+                chipyard_root=chipyard_root,
+                binary=(checkpoint_dir / 'mem.elf'),
+                loadarch=(checkpoint_dir / 'loadarch'),
+                cwd=checkpoint_dir
+            )
+        Parallel(n_jobs=-1)(delayed(run_checkpoint_rtl_sim)(checkpoint) for checkpoint in checkpoints)

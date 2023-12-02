@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, List, cast
+from typing import Tuple, List, cast, Tuple, Optional
 import logging
 
 import numpy as np
@@ -9,7 +9,7 @@ from pandera.typing import DataFrame
 from tidalsim.util.pickle import load
 from tidalsim.modeling.schemas import *
 
-def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int, elf: bool, detailed_warmup_insts: int) -> DataFrame[EstimatedPerfSchema]:
+def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int, elf: bool, detailed_warmup_insts: int) -> Tuple[DataFrame[EstimatedPerfSchema], Optional[DataFrame[GoldenPerfSchema]]]:
     interval_dir = run_dir / f"n_{interval_length}_{'elf' if elf else 'spike'}"
     cluster_dir = interval_dir / f"c_{clusters}"
 
@@ -32,7 +32,13 @@ def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int,
         est_ipc = np.array(ipcs)[clustering_df['cluster_id']],
         est_cycles = lambda x: np.round(x['instret'] * np.reciprocal(x['est_ipc']))
     )
-    return estimated_perf_df
+
+    golden_perf_file = run_dir / "golden" / "perf.csv"
+    if golden_perf_file.exists():
+        golden_perf_df = parse_golden_perf(golden_perf_file)
+        return estimated_perf_df, golden_perf_df
+    else:
+        return estimated_perf_df, None
 
 def parse_golden_perf(perf_csv: Path) -> DataFrame[GoldenPerfSchema]:
     perf_data = pd.read_csv(perf_csv)
