@@ -18,6 +18,21 @@ core   0: 0x0000000080001a72 (0x00000613) li      a2, 0""".split('\n')
             SpikeTraceEntry(0x8000_1a72, "li"),
         ]
 
+    def test_spike_log_ignore_bootrom(self) -> None:
+        lines="""core   0: 0x0000000000001000 (0x00000297) auipc   t0, 0x0
+core   0: 0x0000000000001004 (0x02028593) addi    a1, t0, 32
+core   0: 0x0000000000001008 (0xf1402573) csrr    a0, mhartid
+core   0: 0x000000000000100c (0x0182b283) ld      t0, 24(t0)
+core   0: 0x0000000000001010 (0x00028067) jr      t0
+core   0: >>>>  _start
+core   0: 0x0000000080000000 (0x00004081) c.li    ra, 0
+core   0: 0x0000000080000002 (0x00004101) c.li    sp, 0""".split('\n')
+        result = list(parse_spike_log(iter(lines)))
+        assert result == [
+            SpikeTraceEntry(0x8000_0000, "c.li"),
+            SpikeTraceEntry(0x8000_0002, "c.li"),
+        ]
+
     def test_single_large_block_bbs(self) -> None:
         # A single large block
         result = spike_trace_to_bbs(iter([

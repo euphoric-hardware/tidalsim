@@ -39,5 +39,5 @@ def parse_golden_perf(perf_csv: Path) -> DataFrame[GoldenPerfSchema]:
     golden_perf_df: DataFrame[GoldenPerfSchema] = perf_data.assign(
         ipc = lambda x: x['instret'] / x['cycles'],
         inst_count = lambda x: np.cumsum(x['instret'].to_numpy())
-    )
+    ) # type: ignore
     return golden_perf_df

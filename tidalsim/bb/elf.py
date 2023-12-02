@@ -9,13 +9,13 @@ import logging
 
 from tidalsim.bb.common import control_insts, no_target_insts, BasicBlocks
 
-# Match leading zeros, capture addr, match horizontal whitespace, capture <name> of fn, :, a bunch of chars, newline 
+# Match leading zeros, capture addr, match horizontal whitespace, capture <name> of fn, :, a bunch of chars, newline
 function_header_pattern = re.compile(r"^0*(?P<addr>[0-9a-f]+)[^\S\r\n]+(?P<name><\S+>):.*\n$")
 
 # Match leading horizontal whitespace, capture addr, match  :, match horizontal whitespace, capture instr bits, match horizontal whitespace, capture riscv instr, match horizontal whitespace, capture args+potential target info, newline
 instruction_pattern = re.compile(r"^[^\S\r\n]+(?P<addr>[0-9a-f]+):[^\S\r\n]+(?P<instr_bits>[0-9a-f]+)[^\S\r\n]+(?P<instr>[A-Za-z.]+)[^\S\r\n]*(?P<potential_info>.*)\n$")
 
-# Match 0 or more registers, capture target, match horizontal whitespace, capture any annotation 
+# Match 0 or more registers, capture target, match horizontal whitespace, capture any annotation
 target_pattern = re.compile(r"(?:[a-z0-9]{2},){0,}(?P<target>[a-z0-9]+)[^\S\r\n]*(?P<annotation><\S+>)")
 
 
@@ -38,10 +38,10 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
     basic_blocks = IntervalTree()
     all_control_instrs = []
     no_target_identified = 0
-    
+
     def find_next_func(f: TextIO) -> Optional[int]:
         while l := f.readline():
-            match = function_header_pattern.match(l)         
+            match = function_header_pattern.match(l)
             if match is not None:
                 logging.info(f"{match.group('addr')}\t{match.group('name')}")
                 pc = int(match.group('addr'), 16)
@@ -58,7 +58,7 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
             else:
                 assert last_instr, f"function contains no instr on line {l}"
                 return get_next_pc(last_instr)
-                
+
         logging.info("Reached EOF")
         assert last_instr, f"function contains no instr on line {l}"
         return get_next_pc(last_instr)
@@ -91,7 +91,7 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
             if anno_match is not None:
                 logging.info(f"NOTE: found an annotation\t{anno_match.group(1)} in \t{match.groups()}")
                 return None, anno_match.group(1)
-        
+
         else:
             target_match =  target_pattern.search(potential_info)
             if target_match is None:
@@ -99,11 +99,8 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
                 logging.error(f"Can't identify target\t{match.groups()}")
             else:
                 return int(target_match.group('target'), 16), target_match.group('annotation')
-            
-        return (None, None)
 
-    # TODO: REMOVE LATER
-    basic_blocks.add(Interval(0, 0x8000_0000, next_bbid()))
+        return (None, None)
 
     while func_start_pc := find_next_func(f):
         func_end_pc = parse_func(f)
@@ -122,7 +119,7 @@ def get_split_bbid(iv: Interval, islower: bool) -> int:
 
 # Splitting logic
 def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial_basic_blocks: IntervalTree) -> IntervalTree:
-    
+
     all_basic_blocks = initial_basic_blocks
 
     def start_block_at(pc: int) -> None:
@@ -139,27 +136,10 @@ def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial
             end_block_after(control_instr)
             start_block_at(control_instr.target)
             logging.debug(f"Handled {control_instr}")
-    
+
     return all_basic_blocks
 
 def objdump_to_bbs(f: TextIO) -> BasicBlocks:
     all_control_instrs, inital_basic_blocks = parseFile(f)
     final_basic_blocks = do_basic_block_analysis(all_control_instrs, inital_basic_blocks)
     return BasicBlocks(pc_to_bb_id=final_basic_blocks)
-
-#def main():
-#    
-#    logging.basicConfig(format='%(levelname)s - %(filename)s:%(lineno)d - %(message)s', level=logging.INFO)
-#    filename = "hello.riscv.objdump"
-#    with open(filename, 'r+') as f:
-#        bb = objdump_to_bbs(f)
-#        print_intervals(bb)
-#
-#
-#def print_intervals(bb, write_file="python-final-testlog"):
-#    with open(write_file, 'w') as wf:
-#        for iv in sorted(bb.pc_to_bb_id):
-#            wf.write(f"{iv.begin:x}:{iv.end-1:x}\n")
-#
-#if __name__ == '__main__':
-#    main()

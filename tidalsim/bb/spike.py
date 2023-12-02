@@ -25,8 +25,13 @@ def parse_spike_log(log_lines: Iterator[str]) -> Iterator[SpikeTraceEntry]:
             # TODO: add the spike extracted section labels to SpikeTraceEntry
             continue
         else:
-            # yield SpikeTraceEntry(int(s[2][2:], 16), int(s[3][3:-1], 16), s[4])
-            yield SpikeTraceEntry(int(s[2][2:], 16), s[4])
+            pc = int(s[2][2:], 16)
+            decoded_inst = s[4]
+            # Ignore spike trace outside DRAM
+            if pc < 0x8000_0000:
+                continue
+            else:
+                yield SpikeTraceEntry(pc, decoded_inst)
 
 def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     # Make initial pass through the Spike dump
