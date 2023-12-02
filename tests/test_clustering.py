@@ -15,7 +15,7 @@ class TestClustering:
             [0, 10, 45],
             [1, 10, 47]  # closest to centroid 0
         ])
-        argmin = get_closest_samples_to_centroids(centroids, samples)
+        argmin, distances = get_closest_samples_to_centroids(centroids, samples)
         assert argmin[0] == 3
         assert argmin[1] == 0
         assert argmin[2] == 1
