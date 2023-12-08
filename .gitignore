@@ -7,3 +7,6 @@ m5out
 *.png
 *.pdf
 .vscode
+notebooks/*.svg
+notebooks/*.pdf
+notebooks/*.png

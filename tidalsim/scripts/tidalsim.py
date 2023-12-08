@@ -18,7 +18,7 @@ from tidalsim.modeling.clustering import *
 from tidalsim.modeling.schemas import *
 
 
-def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_instructions: Optional[int], chipyard_root: Path, binary: Path, loadarch: Path, cwd: Path, timeout_cycles: int = 10_000_000) -> None:
+def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_instructions: Optional[int], chipyard_root: Path, binary: Path, loadarch: Path, cwd: Path, suppress_exit: bool, timeout_cycles: int = 10_000_000) -> None:
     max_insts = f"+max-instructions={max_instructions}" if max_instructions is not None else ""
     # +no_hart0_msip = with loadarch, the target should begin execution immediately without
     #   an interrupt required to jump out of the bootrom
@@ -35,6 +35,7 @@ def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_i
             +loadmem={binary.resolve()} \
             +loadarch={loadarch.resolve()} \
             +permissive-off \
+            {'+suppress-exit' if suppress_exit else ''} \
             {binary.resolve()}"
     run_cmd(rtl_sim_cmd, cwd)
 
@@ -91,7 +92,7 @@ def main():
         logging.info(f"Spike trace file already exists in {spike_trace_file}, not rerunning spike")
     else:
         logging.info(f"Spike trace doesn't exist at {spike_trace_file}, running spike")
-        spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, extra_args = "-l")
+        spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, inst_log=True, commit_log=False, suppress_exit=False)
         run_cmd_pipe(spike_cmd, cwd=dest_dir, stderr=spike_trace_file)
 
     if args.golden_sim:
@@ -114,6 +115,7 @@ def main():
                 chipyard_root=chipyard_root,
                 binary=(inst_0_ckpt / 'mem.elf'),
                 loadarch=(inst_0_ckpt / 'loadarch'),
+                suppress_exit=False,
                 cwd=golden_sim_dir
             )
         sys.exit(0)
@@ -247,6 +249,7 @@ def main():
                 chipyard_root=chipyard_root,
                 binary=(checkpoint_dir / 'mem.elf'),
                 loadarch=(checkpoint_dir / 'loadarch'),
+                suppress_exit=True,
                 cwd=checkpoint_dir
             )
         Parallel(n_jobs=-1)(delayed(run_checkpoint_rtl_sim)(checkpoint) for checkpoint in checkpoints)

@@ -10,17 +10,17 @@ from joblib import Parallel, delayed
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture
 
-def get_spike_flags(n_harts: int, isa: str, dram_size: int = 0x1000_0000) -> str:
-    dram_base = 0x8000_0000
-    basemem = f"{dram_base}:{dram_size}"
+def get_spike_cmd(binary: Path, n_harts: int, isa: str, debug_file: Optional[Path], inst_log: bool, commit_log: bool, suppress_exit: bool) -> str:
     # TODO: add pmp CSR dumping commands to spike
-    spike_flags = f"-p{n_harts} --pmpregions=0 --isa={isa} -m{basemem}"
-    return spike_flags
-
-def get_spike_cmd(binary: Path, n_harts: int, isa: str, debug_file: Optional[Path], extra_args: str = "") -> str:
-    spike_flags = get_spike_flags(n_harts, isa)
     debug_flags = "" if debug_file is None else f"-d --debug-cmd={debug_file.resolve()}"
-    return f"spike {debug_flags} {extra_args} {spike_flags} {binary.resolve()}"
+    dram_base = 0x8000_0000
+    dram_size = 0x1000_0000
+    basemem = f"{dram_base}:{dram_size}"
+    spike_flags = f"-p{n_harts} --pmpregions=0 --isa={isa} -m{basemem}"
+    inst_log_flag = "-l" if inst_log else ""
+    commit_log_flag = "--log-commits" if commit_log else ""
+    suppress_exit_flag = "+suppress-exit" if suppress_exit else ""  # This is an HTIF flag and must be passed last!
+    return f"spike {debug_flags} {spike_flags} {inst_log_flag} {commit_log_flag} {suppress_exit_flag} {binary.resolve()}"
 
 def n_insts_to_inst_steps(n_insts: List[int]) -> List[int]:
     inst_steps = [n_insts[0]] + [(n_insts[i] - n_insts[i-1]) for i in range(1, len(n_insts))]
@@ -107,7 +107,7 @@ def gen_checkpoints(binary: Path, start_pc: int, n_insts: List[int], ckpt_base_d
         f.write(spike_cmds(start_pc, n_insts, n_harts, ckpt_base_dir))
 
     # The spike invocation command itself
-    spike_cmd = get_spike_cmd(binary, n_harts, isa, spike_cmds_file)
+    spike_cmd = get_spike_cmd(binary, n_harts, isa, spike_cmds_file, inst_log=False, commit_log=False, suppress_exit=True)
     run_spike_cmd_file = ckpt_base_dir / "run_spike.sh"
     with run_spike_cmd_file.open('w') as f:
         f.write(spike_cmd)
