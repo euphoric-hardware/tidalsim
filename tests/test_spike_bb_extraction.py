@@ -1,5 +1,4 @@
 import pytest
-from intervaltree import IntervalTree, Interval
 
 from tidalsim.bb.spike import *
 
@@ -11,15 +10,11 @@ class TestSpikeBBExtraction:
             SpikeTraceEntry(0x6, "c.addi", 1),
             SpikeTraceEntry(0x8, "li",     2),
             SpikeTraceEntry(0xc, "jal",    3),
-        ])).pc_to_bb_id
-        assert result == IntervalTree([
-            Interval(0x4, 0xc+1, 0),
-        ])
-        assert result[0x4]
-        assert result[0x8]
-        assert result[0xc]
-        assert not result[0xe]
-        assert not result[0x10]
+        ]))
+        assert result == BasicBlocks(markers=[(0x4, 0), (0xd, None)])
+        assert result.pc_to_bb_id(0x4) == result.pc_to_bb_id(0x8)
+        assert not result.pc_to_bb_id(0xe)
+        assert not result.pc_to_bb_id(0x10)
 
     def test_two_blocks_bbs(self) -> None:
         # Two blocks
@@ -29,16 +24,18 @@ class TestSpikeBBExtraction:
             SpikeTraceEntry(0xc,  "jal", 2),
             SpikeTraceEntry(0x20, "add", 3),
             SpikeTraceEntry(0x24, "add", 4),
-        ])).pc_to_bb_id
-        assert result == IntervalTree([
-            Interval(0x4, 0xc+1, 0),
-            Interval(0x20, 0x24+1, 1)
+        ]))
+        assert result == BasicBlocks(markers=[
+            (0x4, 0),
+            (0xc+1, None),
+            (0x20, 1),
+            (0x24+1, None),
         ])
-        assert result[0x8]
-        assert not result[0x10]
-        assert result[0x20]
-        assert result[0x24]
-        assert not result[0x26]
+        assert result.pc_to_bb_id(0x8) == 0
+        assert result.pc_to_bb_id(0x10) == None # Note 2 is not a real basic block, since it's empty dead space
+        assert result.pc_to_bb_id(0x20) == 1
+        assert result.pc_to_bb_id(0x24) == 1
+        assert result.pc_to_bb_id(0x26) == None
 
     def test_block_splitting(self) -> None:
         # Splitting larger blocks into smaller ones
@@ -54,11 +51,13 @@ class TestSpikeBBExtraction:
             SpikeTraceEntry(0x20, "add", 8),
             SpikeTraceEntry(0x24, "add", 9),
             SpikeTraceEntry(0x28, "beq", 10),
-        ])).pc_to_bb_id
-        assert result == IntervalTree([
-            Interval(0x4, 0x8, 0),
-            Interval(0x8, 0xc+1, 1),
-            Interval(0x20, 0x28+1, 2)
+        ]))
+        assert result == BasicBlocks(markers=[
+            (0x4, 0),
+            (0x8, 1),
+            (0xc+1, None),
+            (0x20, 2),
+            (0x28+1, None),
         ])
 
     def test_single_inst_bb(self) -> None:
@@ -70,11 +69,14 @@ class TestSpikeBBExtraction:
             SpikeTraceEntry(0x20, "jal", 3), # This instruction is one basic block alone
             SpikeTraceEntry(0x30, "add", 4),
             SpikeTraceEntry(0x34, "sub", 5),
-        ])).pc_to_bb_id
-        assert result == IntervalTree([
-            Interval(0x4, 0xc+1, 0),
-            Interval(0x20, 0x20+1, 1),
-            Interval(0x30, 0x34+1, 2)
+        ]))
+        assert result == BasicBlocks(markers=[
+            (0x4, 0),
+            (0xc+1, None),
+            (0x20, 1),
+            (0x20+1, None),
+            (0x30, 2),
+            (0x34+1, None),
         ])
 
     # Instructions that are control insts (branches or immediate jumps) but don't cause PC divergence
@@ -86,10 +88,12 @@ class TestSpikeBBExtraction:
             SpikeTraceEntry(0xc,  "jal", 2), # Jumps to PC + 4, but technically creates a new basic block
             SpikeTraceEntry(0x10, "add", 3),
             SpikeTraceEntry(0x14, "add", 4),
-        ])).pc_to_bb_id
-        assert result == IntervalTree([
-            Interval(0x4, 0xc+1, 0),
-            Interval(0x10, 0x14+1, 1),
+        ]))
+        assert result == BasicBlocks(markers=[
+            (0x4, 0),
+            (0xc+1, None),
+            (0x10, 1),
+            (0x14+1, None),
         ])
 
     def test_uncaught_control_insts(self) -> None:

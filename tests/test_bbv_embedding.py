@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-from intervaltree import IntervalTree, Interval
 
 from tidalsim.bb.spike import *
 
@@ -16,8 +15,9 @@ class TestBBVEmbedding:
             SpikeTraceEntry(0x8,  "", 6),
         ]
         extracted_bb = BasicBlocks(
-            IntervalTree([Interval(0, 0x8+1, 0), Interval(0xc, 0x18+1, 1)])
+            markers=[(0, 0), (0x8+1, None), (0xc, 1), (0x18+1, None)]
         )
+
         df = spike_trace_to_embedding_df(iter(trace), extracted_bb, 2)
         ref = DataFrame[EmbeddingSchema]({
             'instret': [2, 2, 2, 1],
