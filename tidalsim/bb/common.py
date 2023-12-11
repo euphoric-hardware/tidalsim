@@ -1,23 +1,5 @@
 import bisect
-from dataclasses import dataclass
 from typing import List, Tuple, Optional, cast
-
-@dataclass
-class BasicBlocks:
-    markers: List[Tuple[int, Optional[int]]]
-
-    def pc_to_bb_id(self, pc: int) -> Optional[int]:
-        bisect_index = bisect.bisect(self.markers, pc, key=lambda x: x[0]) - 1
-
-        if bisect_index == len(self.markers):
-            return None
-
-        _, basic_block = self.markers[bisect_index]
-        return basic_block
-
-    def __len__(self):
-        # Counts the number of markers that map to the start of a basic block
-        return len([bb_idx for _, bb_idx in self.markers if bb_idx is not None])
 
 # Tuple of [left, right), where the left is inclusive and the right is not.
 Interval = Tuple[int, int]
@@ -30,6 +12,29 @@ Event = Tuple[int, int]
 # Tuple of the start of a basic block and the id it maps to. If the basic block id is None, then it is not
 # really a basic block but empty space.
 Marker = Tuple[int, int | None]
+
+class BasicBlocks:
+    markers: List[Marker]
+    markers_idx: List[int]
+    length: int
+
+    def __init__(self, markers: List[Marker]):
+        self.markers = markers
+        self.markers_idx = list(map(lambda x: x[0], markers))
+        self.length = len([bb_idx for _, bb_idx in self.markers if bb_idx is not None])
+
+    def pc_to_bb_id(self, pc: int) -> Optional[int]:
+        bisect_index = bisect.bisect(self.markers_idx, pc) - 1
+
+        if bisect_index == len(self.markers):
+            return None
+
+        _, basic_block = self.markers[bisect_index]
+        return basic_block
+
+    def __len__(self):
+        # Counts the number of markers that map to the start of a basic block
+        return self.length
 
 def intervals_to_events(intervals: List[Interval]) -> List[Event]:
     events: List[Tuple[int, int]] = []

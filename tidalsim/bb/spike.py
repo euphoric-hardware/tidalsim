@@ -1,4 +1,3 @@
-import re
 from typing import Iterator, List, Optional, Tuple
 from dataclasses import dataclass
 
@@ -9,10 +8,6 @@ from pandera.typing import DataFrame
 
 from tidalsim.bb.common import BasicBlocks, control_insts, intervals_to_markers
 from tidalsim.modeling.schemas import *
-
-# Regex patterns to extract instructions or symbols from Spike dump
-instruction_pattern = re.compile(r"core\s*\d: 0x(?P<pc>\w+) \((?P<inst>\w+)\)")
-name_pattern = re.compile(r"core\s*\d:\s*>>>>\s*(?P<name>\w+)")
 
 @dataclass
 class SpikeTraceEntry:

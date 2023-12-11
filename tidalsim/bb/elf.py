@@ -116,11 +116,11 @@ def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial
 
     for control_instr in tqdm(all_control_instrs):
         if control_instr.target is None:
-            events += [cast(Event, (control_instr.pc, None))]
+            events += [(control_instr.pc, 0)]
             logging.debug(f"Handled dynamic jump by ending basic block at {control_instr.pc}")
         else:
-            events += [cast(Event, (control_instr.pc, None))]
-            events += [cast(Event, (control_instr.target, control_instr.target + 1))]
+            events += [(control_instr.pc, 0)]
+            events += [(control_instr.target, control_instr.target + 1)]
             logging.debug(f"Handled {control_instr}")
 
     return events_to_markers(events)
