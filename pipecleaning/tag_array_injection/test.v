@@ -228,7 +228,7 @@ module test();
     );
 
     `define TAG_ARRAY_ROOT tag_array
-    `define TAG_ARRAY(way) `TAG_ARRAY_ROOT.mem_0_``way.ram
+    `define TAG_ARRAY(way) `TAG_ARRAY_ROOT.mem_0_``way``.ram
 
     event tag_array_ready;
     initial begin
@@ -240,28 +240,24 @@ module test();
         $readmemb("tag_array.bin", dcache_tag_array);
         -> tag_array_ready;
         repeat (10) @(posedge clk);
-        //$display("%h", dcache_tag_array[0][0 +: dcache_tag_bits]); // way 0
-        //$display("%h", dcache_tag_array[0][dcache_tag_bits +: dcache_tag_bits]); // way 1
-        //$display("%h", dcache_tag_array[0][dcache_tag_bits*2 +: dcache_tag_bits]); // way 2
-        //$display("%h", dcache_tag_array[0][dcache_tag_bits*3 +: dcache_tag_bits]); // way 3
         $finish();
     end
 
-    for (genvar set_idx=0; set_idx < dcache_sets; set_idx++) begin
-      initial begin
-        // Wait for the dcache_tag_array to be initialized via readmemb
-        wait(tag_array_ready.triggered) begin end
-        force `TAG_ARRAY(0)[set_idx] = dcache_tag_array[set_idx][dcache_tag_bits*0 +: dcache_tag_bits];
-        force `TAG_ARRAY(1)[set_idx] = dcache_tag_array[set_idx][dcache_tag_bits*1 +: dcache_tag_bits];
-        force `TAG_ARRAY(2)[set_idx] = dcache_tag_array[set_idx][dcache_tag_bits*2 +: dcache_tag_bits];
-        force `TAG_ARRAY(3)[set_idx] = dcache_tag_array[set_idx][dcache_tag_bits*3 +: dcache_tag_bits];
-        // TODO: use the actual negedge of the resetting signal inside the dcache
-        // @(negedge resetting) begin end
-        repeat (10) @(posedge clk);
-        release `TAG_ARRAY(0)[set_idx];
-        release `TAG_ARRAY(1)[set_idx];
-        release `TAG_ARRAY(2)[set_idx];
-        release `TAG_ARRAY(3)[set_idx];
-      end
-    end
+    `define TAG_ARRAY_FORCE(way_idx) \
+      for (genvar set_idx=0; set_idx < dcache_sets; set_idx++) begin \
+        initial begin \
+          // Wait for the dcache_tag_array to be initialized via readmemb \
+          wait(tag_array_ready.triggered) begin end \
+          force `TAG_ARRAY_ROOT.mem_0_``way_idx.ram[set_idx] = dcache_tag_array[set_idx][dcache_tag_bits*way_idx +: dcache_tag_bits]; \
+          // TODO: use the actual negedge of the resetting signal inside the dcache \
+          // @(negedge resetting) begin end \
+          repeat (10) @(posedge clk); \
+          release `TAG_ARRAY_ROOT.mem_0_``way_idx.ram[set_idx]; \
+        end \
+      end \
+
+    `TAG_ARRAY_FORCE(0);
+    `TAG_ARRAY_FORCE(1);
+    `TAG_ARRAY_FORCE(2);
+    `TAG_ARRAY_FORCE(3);
 endmodule
