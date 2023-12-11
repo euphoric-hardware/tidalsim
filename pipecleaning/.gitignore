@@ -1,0 +1,8 @@
+*.bin
+*.pretty
+*.log
+*.daidir
+ucli.key
+csrc
+*.fsdb
+simv
