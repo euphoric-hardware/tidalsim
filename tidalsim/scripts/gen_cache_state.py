@@ -2,8 +2,14 @@ import argparse
 from pathlib import Path
 import logging
 from typing import Iterator
+from enum import Enum
+import functools
 
 import numpy as np
+
+class Type(Enum):
+    tag = 'tag'
+    data = 'data'
 
 def main():
     logging.basicConfig(format='%(levelname)s - %(filename)s:%(lineno)d - %(message)s', level=logging.INFO)
@@ -16,7 +22,8 @@ def main():
 
     parser = argparse.ArgumentParser(
                     prog='gen-cache-state',
-                    description='Dump an example Dcache tag array')
+                    description='Dump an example Dcache tag or data array')
+    parser.add_argument('--type', required=True, type=Type, choices=list(Type))
     parser.add_argument('--phys-addr-bits', type=int, default=32, help='Number of physical address bits')
     parser.add_argument('--block-size', type=int, default=64, help='Block size in bytes')
     parser.add_argument('--n-sets', type=int, default=64, help='Number of sets')
@@ -35,27 +42,44 @@ def main():
     tag_bits = raw_tag_bits + 2  # 2 bits for coherency metadata
     assert tag_bits == 22
 
-    # Construct a tag array for each way
+    # Construct tag and data arrays for each way
     tag_array = [np.zeros(args.n_sets, dtype=np.uint32) for _ in range(ways)]
+    data_array = [np.zeros(args.n_sets, dtype=object) for _ in range(ways)]
 
     # Fill the tag array with structured data
     for way_idx, way in enumerate(tag_array):
         for i in range(len(way)):
             way[i] = 0x8000_0 + way_idx*args.n_sets + i
+    # Also fill data array similarly
+    for way_idx, way in enumerate(data_array):
+        for set_idx in range(len(way)):
+            # Find the number of 32-bit words in a cache block
+            words = block_size / 4
+            data = [way_idx*args.n_sets + set_idx*words + x for x in len(words)]
+            data_as_int = 0
+            for word_idx in len(data):
+                data_as_int = data_as_int | (data[word_idx] << (32*word_idx))
+            way[set_idx] = data_as_int
 
     # Helper function to yield a string representation of all ways in each set
-    def get_ways_in_set(set_idx: int, reverse_ways: bool, pretty: bool) -> Iterator[str]:
+    def get_ways_in_set(set_idx: int, typ: Type, reverse_ways: bool, pretty: bool) -> Iterator[str]:
         for way_idx in reversed(range(ways)) if reverse_ways else range(ways):
-            raw_tag = tag_array[way_idx][set_idx]
-            full_tag = (0b11 << raw_tag_bits) | raw_tag  # simulate 'dirty' bits being set
-            if pretty:
-                full_tag_formatted = f'{{:#x}}'.format(full_tag)
-                yield full_tag_formatted
-                #print(f"{full_tag_formatted}, ", end="")
+            if typ == Type.tag:
+                raw_tag = tag_array[way_idx][set_idx]
+                full_tag = (0b11 << raw_tag_bits) | raw_tag  # simulate 'dirty' bits being set
+                if pretty:
+                    full_tag_formatted = f'{{:#x}}'.format(full_tag)
+                    yield full_tag_formatted
+                else:
+                    full_tag_formatted = f'{{:0{tag_bits}b}}'.format(full_tag)
+                    yield full_tag_formatted
             else:
-                full_tag_formatted = f'{{:0{tag_bits}b}}'.format(full_tag)
-                yield full_tag_formatted
-                #print(full_tag_formatted, end="")
+                raw_data = data_array[way_idx][set_idx]
+                num_hex_bits = args.block_size * 8 / 4  # block size in bytes (so x8), 4 bits / hex character
+                if pretty:
+                    yield f'{raw_data:#x}'
+                else:
+                    yield 
 
     # Print ways and sets in reverse order
     for set_idx in reversed(range(args.n_sets)) if args.reverse_sets else range(args.n_sets):
