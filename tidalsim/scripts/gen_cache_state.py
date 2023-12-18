@@ -54,10 +54,10 @@ def main():
     for way_idx, way in enumerate(data_array):
         for set_idx in range(len(way)):
             # Find the number of 32-bit words in a cache block
-            words = block_size / 4
-            data = [way_idx*args.n_sets + set_idx*words + x for x in len(words)]
+            words = args.block_size // 4
+            data = [way_idx*args.n_sets + set_idx*words + x for x in range(words)]
             data_as_int = 0
-            for word_idx in len(data):
+            for word_idx in range(len(data)):
                 data_as_int = data_as_int | (data[word_idx] << (32*word_idx))
             way[set_idx] = data_as_int
 
@@ -83,8 +83,11 @@ def main():
 
     # Print ways and sets in reverse order
     for set_idx in reversed(range(args.n_sets)) if args.reverse_sets else range(args.n_sets):
-        ways_in_set = list(get_ways_in_set(set_idx, args.reverse_ways, args.pretty))
+        ways_in_set = list(get_ways_in_set(set_idx, args.type, args.reverse_ways, args.pretty))
         if args.pretty:
             print(f"Set {set_idx:02d}: {ways_in_set}")
         else:
             print(''.join(ways_in_set))
+
+if __name__ == '__main__':
+    main()
