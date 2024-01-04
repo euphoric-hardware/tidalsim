@@ -9,7 +9,7 @@ from pandera.typing import DataFrame
 from tidalsim.util.pickle import load
 from tidalsim.modeling.schemas import *
 
-def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int, elf: bool, detailed_warmup_insts: int) -> Tuple[DataFrame[EstimatedPerfSchema], Optional[DataFrame[GoldenPerfSchema]]]:
+def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int, elf: bool, detailed_warmup_insts: int, interpolate_clusters: bool) -> Tuple[DataFrame[EstimatedPerfSchema], Optional[DataFrame[GoldenPerfSchema]]]:
     interval_dir = run_dir / f"n_{interval_length}_{'elf' if elf else 'spike'}"
     cluster_dir = interval_dir / f"c_{clusters}"
 
@@ -28,10 +28,31 @@ def analyze_tidalsim_results(run_dir: Path, interval_length: int, clusters: int,
         ipc: float = np.nanmean(perf_data[start_point:]['ipc'])  # type: ignore
         ipcs.append(ipc)
 
-    estimated_perf_df: DataFrame[EstimatedPerfSchema] = clustering_df.assign(
-        est_ipc = np.array(ipcs)[clustering_df['cluster_id']],
-        est_cycles = lambda x: np.round(x['instret'] * np.reciprocal(x['est_ipc']))
-    )
+    if not interpolate_clusters:
+        # If we don't interpolate, we just use the IPC of the simulated point for that cluster
+        estimated_perf_df: DataFrame[EstimatedPerfSchema] = clustering_df.assign(
+            est_ipc = np.array(ipcs)[clustering_df['cluster_id']],
+            est_cycles = lambda x: np.round(x['instret'] * np.reciprocal(x['est_ipc']))
+        )
+    else:
+        # If we do interpolate, we use a weighted (by inverse L2 norm) average of the IPCs of all simulated points
+        kmeans_file = cluster_dir / "kmeans_model.pickle"
+        kmeans = load(kmeans_file)
+
+        # for all points, compute norms to all centroids and store as separate vecs
+        norms: np.ndarray = clustering_df['embedding'].apply(lambda s: np.linalg.norm(kmeans.cluster_centers_ - s, axis=1))
+        # combine vecs to speed up computation
+        norms = np.stack(norms)
+        # invert to weight closer points heigher, and normalize vecs to sum to 1
+        norms = 1 / norms
+        weight_vecs = norms / norms.sum(axis=1, keepdims=True)
+        # multiply weight vecs by ips to get weighted average
+        est_ipc = weight_vecs @ np.array(ipcs)
+        # assign to df
+        estimated_perf_df: DataFrame[EstimatedPerfSchema] = clustering_df.assign(
+            est_ipc = est_ipc,
+            est_cycles = lambda x: np.round(x['instret'] * np.reciprocal(x['est_ipc']))
+        )
 
     golden_perf_file = run_dir / "golden" / "perf.csv"
     if golden_perf_file.exists():
