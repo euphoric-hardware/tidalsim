@@ -47,7 +47,7 @@ def main():
                     description='Sampled simulation')
     parser.add_argument('--binary', type=str, required=True, help='RISC-V binary to run')
     parser.add_argument('-n', '--interval-length', type=int, required=True, help='Length of a program interval in instructions')
-    parser.add_argument('-c', '--clusters', type=int, required=True, help='Number of clusters')
+    parser.add_argument('-c', '--clusters', type=int, required=False, default=0, help='Number of clusters, automatically set if not specified')
     # parser.add_argument('--n-harts', type=int, default=1, help='Number of harts [default 1]')
     n_harts = 1 # hardcode this for now
     # parser.add_argument('--isa', type=str, help='ISA to pass to spike [default rv64gc]', default='rv64gc')
@@ -190,14 +190,21 @@ def main():
     # TODO: standardize features and see if that makes a difference for clustering
     from sklearn.cluster import KMeans
     kmeans_file = cluster_dir / "kmeans_model.pickle"
-    keams: KMeans
+    kmeans: KMeans
+    random_state = 100
     if kmeans_file.exists():
         logging.info(f"Loading k-means model from {kmeans_file}")
         kmeans = load(kmeans_file)
     else:
-        logging.info(f"Performing k-means clustering with {args.clusters} clusters")
         matrix = np.vstack(embedding_df['embedding'].to_numpy()) # type: ignore
-        kmeans = KMeans(n_clusters=args.clusters, n_init="auto", verbose=100, random_state=100).fit(matrix)
+        num_clusters: int
+        if args.clusters:
+            num_clusters = args.clusters
+        else:
+            logging.info(f"No --clusters specified, picking optimal number of clusters")
+            num_clusters = pick_num_clusters(matrix, max_clusters=32, random_state=random_state)
+        logging.info(f"Performing k-means clustering with {num_clusters} clusters")
+        kmeans = KMeans(n_clusters=num_clusters, n_init="auto", verbose=100, random_state=random_state).fit(matrix)
         logging.info(f"Saving k-means model to {kmeans_file}")
         dump(kmeans, kmeans_file)
 
