@@ -11,7 +11,7 @@
 - Run [Chipyard setup](https://chipyard.readthedocs.io/en/stable/Chipyard-Basics/Initial-Repo-Setup.html) as usual
     - Install [miniconda3](https://github.com/conda-forge/miniforge/#download)
     - Install `conda-lock`: `conda install -n base conda-lock=1.4`, `conda activate base`
-    - `./build-setup.sh -s 4 -s 5 -s 6 -s 7 -s 8 -s 9 riscv-tools`
+    - `./build-setup.sh --use-lean-conda`
 - Activate the Chipyard conda environment
     - `conda activate ./.conda-env`
     - `source env.sh`
@@ -38,13 +38,13 @@
 
 - Build a RTL simulator with state injection support
     - `cd sims/vcs`
-    - `make default STATE_INJECT=1`
+    - `make default STATE_INJECT=1 CONFIG=FastRTLSimRocketConfig`
 - Run simulation with state injection
-    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-RocketConfig --chipyard-root . --dest-dir runs`
+    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-FastRTLSimRocketConfig --chipyard-root . --dest-dir runs`
     - This will run sampled simulation and store the results in the `runs` directory
     - Run `head runs/hello.riscv*/**/perf.csv` to see the performance logs for each sample replayed in RTL simulation
 - Collect a reference performance trace (just add `--golden-sim` to the `tidalsim` invocation)
-    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-RocketConfig --chipyard-root . --dest-dir runs --golden-sim`
+    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-FastRTLSimRocketConfig --chipyard-root . --dest-dir runs --golden-sim`
 
 ---
 
