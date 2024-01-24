@@ -15,11 +15,11 @@ module test();
     //bit dcache_tag_array [0:dcache_ways-1][0:dcache_sets-1][dcache_tag_bits-1:0];
     bit [(dcache_tag_bits*dcache_ways)-1:0] dcache_tag_array [dcache_sets];
     localparam integer dcache_addrs_per_way = (dcache_sets * dcache_block_size) / 8; // 8 = 8B = 64-bits which is the hardcoded width of the dcache data bus
-    //bit [(
 
     reg clk = 0;
     always #1 clk <= ~clk;
 
+    // /TestDriver/testHarness/chiptop0/system/tile_prci_domain/element_reset_domain_rockettile/dcache/tag_array
     tag_array_ext tag_array(
         .RW0_addr(6'd0),
         .RW0_clk(clk),
@@ -30,7 +30,8 @@ module test();
         .RW0_wmask(4'd0)
     );
 
-    data_arrays_0 data_array(
+    // /TestDriver/testHarness/chiptop0/system/tile_prci_domain/element_reset_domain_rockettile/dcache/data/data_arrays_0/data_arrays_0_ext
+    data_arrays_0_ext data_array(
       .RW0_addr(9'd0),
       .RW0_en(1'b1),
       .RW0_clk(clk),

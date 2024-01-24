@@ -41,6 +41,7 @@ def main():
     assert raw_tag_bits == 20
     tag_bits = raw_tag_bits + 2  # 2 bits for coherency metadata
     assert tag_bits == 22
+    cache_line_bits = args.block_size * 8
 
     # Construct tag and data arrays for each way
     tag_array = [np.zeros(args.n_sets, dtype=np.uint32) for _ in range(ways)]
@@ -48,18 +49,17 @@ def main():
 
     # Fill the tag array with structured data
     for way_idx, way in enumerate(tag_array):
-        for i in range(len(way)):
-            way[i] = 0x8000_0 + way_idx*args.n_sets + i
-    # Also fill data array similarly
+        for set_idx in range(args.n_sets):
+            way[set_idx] = 0x8000_0 + way_idx*args.n_sets + set_idx
+
+    # Fill data array with the same data in every way and set that covers every byte
     for way_idx, way in enumerate(data_array):
-        for set_idx in range(len(way)):
-            # Find the number of 32-bit words in a cache block
-            words = args.block_size // 4
-            data = [way_idx*args.n_sets + set_idx*words + x for x in range(words)]
-            data_as_int = 0
-            for word_idx in range(len(data)):
-                data_as_int = data_as_int | (data[word_idx] << (32*word_idx))
-            way[set_idx] = data_as_int
+        for set_idx in range(args.n_sets):
+            data_bytes = [way_idx*args.block_size + set_idx*args.block_size + i + 1 for i in range(args.block_size)]
+            data = 0
+            for i, byte in enumerate(data_bytes):
+                data = data | ((byte & 0xff) << (i*8))
+            way[set_idx] = data
 
     # Helper function to yield a string representation of all ways in each set
     def get_ways_in_set(set_idx: int, typ: Type, reverse_ways: bool, pretty: bool) -> Iterator[str]:
@@ -75,11 +75,12 @@ def main():
                     yield full_tag_formatted
             else:
                 raw_data = data_array[way_idx][set_idx]
-                num_hex_bits = args.block_size * 8 / 4  # block size in bytes (so x8), 4 bits / hex character
+                # each byte needs 2 hex characters
+                num_hex_chars = args.block_size * 2
                 if pretty:
                     yield f'{raw_data:#x}'
                 else:
-                    yield 
+                    yield f'{{:0{cache_line_bits}b}}'.format(raw_data)
 
     # Print ways and sets in reverse order
     for set_idx in reversed(range(args.n_sets)) if args.reverse_sets else range(args.n_sets):
@@ -88,6 +89,3 @@ def main():
             print(f"Set {set_idx:02d}: {ways_in_set}")
         else:
             print(''.join(ways_in_set))
-
-if __name__ == '__main__':
-    main()
