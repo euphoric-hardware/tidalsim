@@ -14,7 +14,7 @@ module test();
     localparam integer dcache_tag_bits = dcache_raw_tag_bits + 2; // 2 bits for coherency metadata
     //bit dcache_tag_array [0:dcache_ways-1][0:dcache_sets-1][dcache_tag_bits-1:0];
     bit [(dcache_tag_bits*dcache_ways)-1:0] dcache_tag_array [dcache_sets];
-    localparam integer dcache_addrs_per_way = (dcache_sets * dcache_block_size) / 8; // 8 = 8B = 64-bits which is the hardcoded width of the dcache data bus
+    bit [(dcache_block_size*8*dcache_ways)-1:0] dcache_data_array [dcache_sets];
 
     reg clk = 0;
     always #1 clk <= ~clk;
@@ -50,6 +50,7 @@ module test();
         $fsdbDumpvars("+all");
         assert(dcache_tag_bits == 22);
         $readmemb("tag_array.bin", dcache_tag_array);
+        $readmemb("data_array.bin", dcache_data_array);
         -> dcache_arrays_ready;
         repeat (10) @(posedge clk);
         $finish();
@@ -68,10 +69,15 @@ module test();
         end \
       end \
 
+    //initial begin
+    //  wait(dcache_arrays_ready.triggered) begin end \
+    //  force `DATA_ARRAY_ROOT.mem_0_0.
+    //end
+
     // This is very stupid, there doesn't seem to be a way to do this
     // programmatically since macros are just string substitution.
     // We are forced to use macros since force statements must have fully
-    // specified hierarchical paths at compile time.
+    // specified hierarchical paths at elaboration time.
     `TAG_ARRAY_FORCE(0);
     `TAG_ARRAY_FORCE(1);
     `TAG_ARRAY_FORCE(2);
