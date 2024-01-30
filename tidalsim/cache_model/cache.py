@@ -100,7 +100,7 @@ class CacheState:
       tag_array_bin = self.tag_array_binary_str(way_idx)
       with (dir / f"{prefix}{way_idx}.bin").open('w') as f:
         f.write(tag_array_bin)
-    with (dir / f"tag_array.pretty").open('w') as f:
+    with (dir / f"{prefix}.pretty").open('w') as f:
       f.write(self.tag_array_pretty_str())
 
   def data_array_pretty_str(self, reverse_ways: bool = True) -> Iterator[str]:

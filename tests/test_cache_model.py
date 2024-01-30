@@ -23,4 +23,4 @@ class TestCacheModel:
         params = CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=64, n_ways=4)
         state = CacheState(params)
         state.fill_with_structured_data()
-        state.dump_tag_arrays(tmp_path, prefix="mem_0_")
+        state.dump_tag_arrays(tmp_path, prefix="dcache_tag_array")
