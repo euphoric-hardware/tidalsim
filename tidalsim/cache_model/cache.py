@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import List, Iterator
 from pathlib import Path
 from math import ceil
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 def clog2(x):
   """Ceiling of log2"""
@@ -16,6 +16,10 @@ class CohStatus(IntEnum):
   Branch  = 1
   Trunk   = 2
   Dirty   = 3
+
+class Array(Enum):
+  Tag = 0
+  Data = 1
 
 @dataclass
 class CacheBlock:
@@ -34,7 +38,8 @@ class CacheParams:
   tag_bits: int = field(init=False)
   coherency_bits: int = 2  # see CohStatus
   tag_bits: int = field(init=False)
-  tag_bits_hex_chars: int = field(init=False)
+  tag_hex_chars: int = field(init=False)
+  data_hex_chars: int = field(init=False)
   block_size_bits: int = field(init=False)
   tag_mask: int = field(init=False)
   coherency_mask: int = field(init=False)
@@ -43,7 +48,8 @@ class CacheParams:
     self.offset_bits = clog2(self.block_size_bytes)
     self.set_bits = clog2(self.n_sets)
     self.tag_bits = self.phys_addr_bits - self.set_bits - self.offset_bits
-    self.tag_bits_hex_chars = ceil(self.tag_bits / 4)
+    self.tag_hex_chars = ceil(self.tag_bits / 4)
+    self.data_hex_chars = self.block_size_bytes * 2
     self.block_size_bits = self.block_size_bytes * 8
     self.tag_mask = (1 << self.tag_bits) - 1
     self.coherency_mask = (1 << self.coherency_bits) - 1
@@ -76,13 +82,22 @@ class CacheState:
   def ways_str(self, reverse_ways: bool) -> str:
     return ', '.join([f"Way {i}" for i in self.way_idx_iterator(reverse_ways)])
 
-  def tag_array_pretty_str(self, reverse_ways: bool = True) -> str:
+  def array_pretty_str(self, array: Array, reverse_ways: bool = True) -> str:
     def inner() -> Iterator[str]:
       yield f"Ways: {self.ways_str(reverse_ways)}"
       for set_idx in range(self.params.n_sets):
         cache_blocks = [self.array[way_idx][set_idx] for way_idx in self.way_idx_iterator(reverse_ways)]
-        tags_str = ', '.join([f'{{:#0{self.params.tag_bits_hex_chars}x}} {{}}'.format(block.tag, block.coherency.name) for block in cache_blocks])
-        yield f"Set {set_idx:02d}: [{tags_str}]"
+        if array == Array.Tag:
+          # +2 tag_hex_chars to account for the leading '0x'
+          tag_blocks = [f'{block.tag:#0{self.params.tag_hex_chars + 2}x} {block.coherency.name}' for block in cache_blocks]
+          tag_str = ', '.join(tag_blocks)
+          yield f"Set {set_idx:02d}: [{tag_str}]"
+        else:
+          assert array == Array.Data
+          # +2 data_hex_chars to account for the leading '0x'
+          data_blocks = [f'{block.data:#0{self.params.data_hex_chars + 2}x}' for block in cache_blocks]
+          data_str = '\n'.join(data_blocks)
+          yield f"Set {set_idx:02d}: [\n{data_str}\n]"
     return '\n'.join([x for x in inner()])
 
   def tag_array_binary_str(self, way_idx: int) -> str:
@@ -101,7 +116,19 @@ class CacheState:
       with (dir / f"{prefix}{way_idx}.bin").open('w') as f:
         f.write(tag_array_bin)
     with (dir / f"{prefix}.pretty").open('w') as f:
-      f.write(self.tag_array_pretty_str())
+      f.write(self.array_pretty_str(Array.Tag))
 
-  def data_array_pretty_str(self, reverse_ways: bool = True) -> Iterator[str]:
-    yield f"Ways: {self.ways_str(reverse_ways)}"
+  def data_array_binary_str(self, way_idx: int, data_bus_bytes: int = 8) -> str:
+    rows_per_set = self.params.block_size_bytes // data_bus_bytes
+    def inner() -> Iterator[str]:
+      for set_idx in range(self.params.n_sets):
+        cache_block = self.array[way_idx][set_idx]
+        # data is params.block_size_bytes wide
+        data = cache_block.data
+        # The data array for a given way is 8B wide and has enough entries to hold n_sets sets
+        # This means data must be split into 8B wide rows
+        for i in range(rows_per_set):
+          row = data & ((1 << (data_bus_bytes*8)) - 1)
+          yield f"{{:0{data_bus_bytes*8}b}}".format(row)
+          data = data >> (data_bus_bytes*8)
+    return '\n'.join([x for x in inner()])
