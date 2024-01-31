@@ -27,7 +27,7 @@ class TestCacheModel:
     def test_dump_tag_arrays(self, tmp_path: Path) -> None:
         prefix = "dcache_tag_array"
         self.state.dump_tag_arrays(tmp_path, prefix)
-        assert (tmp_path / "dcache_tag_array.pretty").exists()
+        assert (tmp_path / f"{prefix}.pretty").exists()
         for way_idx in range(self.params.n_ways):
             bin_file = tmp_path / f'{prefix}{way_idx}.bin'
             assert bin_file.exists()
@@ -48,3 +48,8 @@ class TestCacheModel:
                 data_from_bin = s_split[data_bus_bytes*set_idx:data_bus_bytes*(set_idx+1)]
                 assert int(''.join(reversed(data_from_bin)), 2) == self.state.array[way_idx][set_idx].data
         print(self.state.data_array_binary_str(way_idx=0, data_bus_bytes=data_bus_bytes))
+
+    def test_dump_data_arrays(self, tmp_path: Path) -> None:
+        prefix = "dcache_data_array"
+        self.state.dump_data_arrays(tmp_path, prefix)
+        assert (tmp_path / f"{prefix}.pretty").exists()

@@ -4,6 +4,8 @@ from pathlib import Path
 from math import ceil
 from enum import IntEnum, Enum
 
+from more_itertools import chunked
+
 def clog2(x):
   """Ceiling of log2"""
   if x <= 0:
@@ -43,6 +45,7 @@ class CacheParams:
   block_size_bits: int = field(init=False)
   tag_mask: int = field(init=False)
   coherency_mask: int = field(init=False)
+  data_bus_bytes: int = 8  # this is the default in Rocket
 
   def __post_init__(self) -> None:
     self.offset_bits = clog2(self.block_size_bytes)
@@ -118,8 +121,8 @@ class CacheState:
     with (dir / f"{prefix}.pretty").open('w') as f:
       f.write(self.array_pretty_str(Array.Tag))
 
-  def data_array_binary_str(self, way_idx: int, data_bus_bytes: int = 8) -> str:
-    rows_per_set = self.params.block_size_bytes // data_bus_bytes
+  def data_array_binary_str(self, way_idx: int) -> str:
+    rows_per_set = self.params.block_size_bytes // self.params.data_bus_bytes
     def inner() -> Iterator[str]:
       for set_idx in range(self.params.n_sets):
         cache_block = self.array[way_idx][set_idx]
@@ -128,7 +131,24 @@ class CacheState:
         # The data array for a given way is 8B wide and has enough entries to hold n_sets sets
         # This means data must be split into 8B wide rows
         for i in range(rows_per_set):
-          row = data & ((1 << (data_bus_bytes*8)) - 1)
-          yield f"{{:0{data_bus_bytes*8}b}}".format(row)
-          data = data >> (data_bus_bytes*8)
+          row = data & ((1 << (self.params.data_bus_bytes*8)) - 1)
+          yield f"{{:0{self.params.data_bus_bytes*8}b}}".format(row)
+          data = data >> (self.params.data_bus_bytes*8)
     return '\n'.join([x for x in inner()])
+
+  def dump_data_arrays(self, dir: Path, prefix: str) -> None:
+    for way_idx in range(self.params.n_ways):
+      bin_for_way = self.data_array_binary_str(way_idx).split('\n')
+      data_to_write = [[] for _ in range(self.params.data_bus_bytes)]
+      for line in bin_for_way:
+        # Each line goes from MSB byte to LSB byte but the RAMs are from LSB byte to MSB byte
+        line_bytes_chunked = [''.join(x) for x in list(chunked(line, self.params.data_bus_bytes, strict=True))]
+        line_bytes = list(reversed(line_bytes_chunked))
+        # We must slice each line byte-wise since the L1d is made up of byte-wise RAMs
+        for byte_idx in range(self.params.data_bus_bytes):
+          data_to_write[byte_idx].append(line_bytes[byte_idx])
+      for byte_idx in range(self.params.data_bus_bytes):
+        with (dir / f"{prefix}{way_idx*self.params.data_bus_bytes + byte_idx}.bin").open('w') as f:
+          f.write('\n'.join(data_to_write[byte_idx]))
+    with (dir / f"{prefix}.pretty").open('w') as f:
+      f.write(self.array_pretty_str(Array.Data))
