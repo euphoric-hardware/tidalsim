@@ -28,3 +28,4 @@ def main():
     state = CacheState(params)
     state.fill_with_structured_data()
     state.dump_tag_arrays(data_dir, "dcache_tag_array")
+    state.dump_data_arrays(data_dir, "dcache_data_array")

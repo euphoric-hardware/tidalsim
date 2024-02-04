@@ -33,6 +33,7 @@ module tb();
     // DCache functional warmup
     localparam integer physical_address_bits = 32;
     localparam integer dcache_block_size = 64;
+    localparam integer dcache_data_bus_width = 8;
     localparam integer dcache_sets = 64;
     localparam integer dcache_size = 16384;
     localparam integer dcache_ways = dcache_size / (dcache_sets * dcache_block_size);
@@ -40,6 +41,7 @@ module tb();
     localparam integer dcache_set_bits = $clog2(dcache_sets);
     localparam integer dcache_raw_tag_bits = physical_address_bits - dcache_set_bits - dcache_offset_bits;
     localparam integer dcache_tag_bits = dcache_raw_tag_bits + 2; // 2 bits for coherency metadata
+    localparam integer dcache_data_rows_per_set = dcache_block_size / dcache_data_bus_width;
 
     `define TAG_ARRAY_FORCE(way_idx) \
       bit [dcache_tag_bits-1:0] dcache_tag_array``way_idx`` [dcache_sets]; \
@@ -66,6 +68,57 @@ module tb();
     `TAG_ARRAY_FORCE(1);
     `TAG_ARRAY_FORCE(2);
     `TAG_ARRAY_FORCE(3);
+
+    `define DATA_ARRAY_FORCE(byte_idx) \
+      bit [dcache_data_bus_width-1:0] dcache_data_array``byte_idx`` [dcache_data_rows_per_set * dcache_sets]; \
+      event dcache_data_array_ready``byte_idx; \
+      initial begin \
+        $readmemb("data/dcache_data_array``byte_idx.bin", dcache_data_array``byte_idx``); \
+        -> dcache_data_array_ready``byte_idx; \
+      end \
+      for (genvar row_idx=0; row_idx < dcache_data_rows_per_set * dcache_sets; row_idx++) begin \
+        initial begin \
+          wait(dcache_data_array_ready``byte_idx.triggered) begin end \
+          force `DATA_ARRAY_ROOT.mem_0_``byte_idx.ram[row_idx] = dcache_data_array``byte_idx[row_idx]; \
+          // @(negedge resetting) begin end \
+          repeat (10) @(posedge clk); \
+          release `DATA_ARRAY_ROOT.mem_0_``byte_idx.ram[row_idx]; \
+        end \
+      end \
+
+    // There are data_bus_width * ways (8 * 4 = 32) dcache data RAMs
+    `DATA_ARRAY_FORCE(0);
+    `DATA_ARRAY_FORCE(1);
+    `DATA_ARRAY_FORCE(2);
+    `DATA_ARRAY_FORCE(3);
+    `DATA_ARRAY_FORCE(4);
+    `DATA_ARRAY_FORCE(5);
+    `DATA_ARRAY_FORCE(6);
+    `DATA_ARRAY_FORCE(7);
+    `DATA_ARRAY_FORCE(8);
+    `DATA_ARRAY_FORCE(9);
+    `DATA_ARRAY_FORCE(10);
+    `DATA_ARRAY_FORCE(11);
+    `DATA_ARRAY_FORCE(12);
+    `DATA_ARRAY_FORCE(13);
+    `DATA_ARRAY_FORCE(14);
+    `DATA_ARRAY_FORCE(15);
+    `DATA_ARRAY_FORCE(16);
+    `DATA_ARRAY_FORCE(17);
+    `DATA_ARRAY_FORCE(18);
+    `DATA_ARRAY_FORCE(19);
+    `DATA_ARRAY_FORCE(20);
+    `DATA_ARRAY_FORCE(21);
+    `DATA_ARRAY_FORCE(22);
+    `DATA_ARRAY_FORCE(23);
+    `DATA_ARRAY_FORCE(24);
+    `DATA_ARRAY_FORCE(25);
+    `DATA_ARRAY_FORCE(26);
+    `DATA_ARRAY_FORCE(27);
+    `DATA_ARRAY_FORCE(28);
+    `DATA_ARRAY_FORCE(29);
+    `DATA_ARRAY_FORCE(30);
+    `DATA_ARRAY_FORCE(31);
 
     initial begin
         $fsdbDumpfile("dump.fsdb");
