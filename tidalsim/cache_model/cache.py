@@ -46,6 +46,7 @@ class CacheParams:
   tag_mask: int = field(init=False)
   coherency_mask: int = field(init=False)
   data_bus_bytes: int = 8  # this is the default in Rocket
+  data_rows_per_set: int = field(init=False)
 
   def __post_init__(self) -> None:
     self.offset_bits = clog2(self.block_size_bytes)
@@ -56,6 +57,7 @@ class CacheParams:
     self.block_size_bits = self.block_size_bytes * 8
     self.tag_mask = (1 << self.tag_bits) - 1
     self.coherency_mask = (1 << self.coherency_bits) - 1
+    self.data_rows_per_set = self.block_size_bytes // self.data_bus_bytes
 
 @dataclass
 class CacheState:
