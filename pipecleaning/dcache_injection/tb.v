@@ -42,12 +42,21 @@ module tb();
     localparam integer dcache_raw_tag_bits = physical_address_bits - dcache_set_bits - dcache_offset_bits;
     localparam integer dcache_tag_bits = dcache_raw_tag_bits + 2; // 2 bits for coherency metadata
     localparam integer dcache_data_rows_per_set = dcache_block_size / dcache_data_bus_width;
+    string checkpoint_dir;
+
+    initial begin
+      void'($value$plusargs("checkpoint-dir=%s", checkpoint_dir));
+      if (checkpoint_dir.len() == 0) begin
+        $error("Need to specify +checkpoint-dir=<dir> that contains the tag/data arrays to inject");
+        $finish();
+      end
+    end
 
     `define TAG_ARRAY_FORCE(way_idx) \
       bit [dcache_tag_bits-1:0] dcache_tag_array``way_idx`` [dcache_sets]; \
       event dcache_tag_array_ready``way_idx; \
       initial begin \
-        $readmemb("data/dcache_tag_array``way_idx.bin", dcache_tag_array``way_idx``); \
+        $readmemb({checkpoint_dir, "/dcache_tag_array``way_idx.bin"}, dcache_tag_array``way_idx``); \
         -> dcache_tag_array_ready``way_idx; \
       end \
       for (genvar set_idx=0; set_idx < dcache_sets; set_idx++) begin \
@@ -73,7 +82,7 @@ module tb();
       bit [dcache_data_bus_width-1:0] dcache_data_array``byte_idx`` [dcache_data_rows_per_set * dcache_sets]; \
       event dcache_data_array_ready``byte_idx; \
       initial begin \
-        $readmemb("data/dcache_data_array``byte_idx.bin", dcache_data_array``byte_idx``); \
+        $readmemb({checkpoint_dir, "/dcache_data_array``byte_idx.bin"}, dcache_data_array``byte_idx``); \
         -> dcache_data_array_ready``byte_idx; \
       end \
       for (genvar row_idx=0; row_idx < dcache_data_rows_per_set * dcache_sets; row_idx++) begin \
