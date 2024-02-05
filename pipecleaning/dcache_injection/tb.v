@@ -59,14 +59,11 @@ module tb();
         $readmemb({checkpoint_dir, "/dcache_tag_array``way_idx.bin"}, dcache_tag_array``way_idx``); \
         -> dcache_tag_array_ready``way_idx; \
       end \
-      for (genvar set_idx=0; set_idx < dcache_sets; set_idx++) begin \
-        initial begin \
-          wait(dcache_tag_array_ready``way_idx.triggered) begin end \
-          force `TAG_ARRAY_ROOT.mem_0_``way_idx.ram[set_idx] = dcache_tag_array``way_idx[set_idx]; \
-          // @(negedge resetting) begin end \
-          repeat (10) @(posedge clk); \
-          release `TAG_ARRAY_ROOT.mem_0_``way_idx.ram[set_idx]; \
-        end \
+      initial begin \
+        wait(dcache_tag_array_ready``way_idx.triggered) begin end \
+        force `TAG_ARRAY_ROOT.mem_0_``way_idx.ram = dcache_tag_array``way_idx; \
+        repeat (10) @(posedge clk); \
+        release `TAG_ARRAY_ROOT.mem_0_``way_idx.ram; \
       end \
 
     // This is very stupid, there doesn't seem to be a way to do this
@@ -85,14 +82,11 @@ module tb();
         $readmemb({checkpoint_dir, "/dcache_data_array``byte_idx.bin"}, dcache_data_array``byte_idx``); \
         -> dcache_data_array_ready``byte_idx; \
       end \
-      for (genvar row_idx=0; row_idx < dcache_data_rows_per_set * dcache_sets; row_idx++) begin \
-        initial begin \
-          wait(dcache_data_array_ready``byte_idx.triggered) begin end \
-          force `DATA_ARRAY_ROOT.mem_0_``byte_idx.ram[row_idx] = dcache_data_array``byte_idx[row_idx]; \
-          // @(negedge resetting) begin end \
-          repeat (10) @(posedge clk); \
-          release `DATA_ARRAY_ROOT.mem_0_``byte_idx.ram[row_idx]; \
-        end \
+      initial begin \
+        wait(dcache_data_array_ready``byte_idx.triggered) begin end \
+        force `DATA_ARRAY_ROOT.mem_0_``byte_idx.ram = dcache_data_array``byte_idx; \
+        repeat (10) @(posedge clk); \
+        release `DATA_ARRAY_ROOT.mem_0_``byte_idx.ram; \
       end \
 
     // There are data_bus_width * ways (8 * 4 = 32) dcache data RAMs
