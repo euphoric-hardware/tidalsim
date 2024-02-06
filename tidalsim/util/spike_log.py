@@ -1,17 +1,17 @@
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import Iterator, Optional, List, Iterable
 from enum import IntEnum
 from more_itertools import chunked
 
 # RISC-V Psuedoinstructions: https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#pseudoinstructions
 branches = [
-        # RV64I branches
-        'beq', 'bge', 'bgeu', 'blt', 'bltu', 'bne',
-        # RV64C branches
-        'c.beqz', 'c.bnez',
-        # Psuedo instructions
-        'beqz', 'bnez', 'blez', 'bgez', 'bltz', 'bgtz', 'bgt', 'ble', 'bgtu', 'bleu'
-        ]
+    # RV64I branches
+    'beq', 'bge', 'bgeu', 'blt', 'bltu', 'bne',
+    # RV64C branches
+    'c.beqz', 'c.bnez',
+    # Psuedo instructions
+    'beqz', 'bnez', 'blez', 'bgez', 'bltz', 'bgtz', 'bgt', 'ble', 'bgtu', 'bleu'
+]
 jumps = ['j', 'jal', 'jr', 'jalr', 'ret', 'call', 'c.j', 'c.jal', 'c.jr', 'c.jalr', 'tail']
 syscalls = ['ecall', 'ebreak', 'mret', 'sret', 'uret']
 control_insts = set(branches + jumps + syscalls)
@@ -45,7 +45,7 @@ class SpikeTraceEntry:
 # [full_commit_log] = True if spike was ran with '-l --log-commits', False if spike is only run with '-l'
 def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator[SpikeTraceEntry]:
     inst_count = 0
-    iterator = chunked(log_lines, 2) if full_commit_log else [[x, None] for x in log_lines]
+    iterator: Iterable[List[str]] = chunked(log_lines, 2) if full_commit_log else [[x, ""] for x in log_lines]
     for line in iterator:
         # Example of line1 (regular commit log)
         # core   0: 0x0000000080001a8e (0x00009522) c.add   a0, s0
@@ -78,7 +78,6 @@ def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator
                 s2 = line2.split()
                 s2_len = len(s2)
                 if s2_len == 8 and s2[5] == "mem":  # store instruction
-                    print(s2)
                     commit_info = SpikeCommitInfo(address=int(s2[6][2:], 16), data=int(s2[7][2:], 16), op=Op.Store)
                 elif s2_len == 9 and s2[7] == "mem":  # load instruction
                     commit_info = SpikeCommitInfo(address=int(s2[8][2:], 16), data=int(s2[6][2:], 16), op=Op.Load)

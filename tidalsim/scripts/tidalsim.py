@@ -11,7 +11,8 @@ import numpy as np
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe, run_cmd_pipe_stdout
 from tidalsim.util.spike_ckpt import *
-from tidalsim.bb.spike import parse_spike_log, spike_trace_to_bbs, spike_trace_to_embedding_df, BasicBlocks
+from tidalsim.util.spike_log import parse_spike_log
+from tidalsim.bb.spike import spike_trace_to_bbs, spike_trace_to_embedding_df, BasicBlocks
 from tidalsim.bb.elf import objdump_to_bbs
 from tidalsim.util.pickle import dump, load
 from tidalsim.modeling.clustering import *
@@ -152,7 +153,7 @@ def main():
         else:
             logging.info(f"Running spike commit log based BB extraction")
             with spike_trace_file.open('r') as f:
-                spike_trace_log = parse_spike_log(f)
+                spike_trace_log = parse_spike_log(f, False)
                 bb = spike_trace_to_bbs(spike_trace_log)
                 dump(bb, spike_bb_file)
             logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
@@ -175,7 +176,7 @@ def main():
     else:
         logging.info(f"Computing BBV embedding dataframe")
         with spike_trace_file.open('r') as spike_trace:
-            spike_trace_log = parse_spike_log(spike_trace)
+            spike_trace_log = parse_spike_log(spike_trace, False)
             embedding_df = spike_trace_to_embedding_df(spike_trace_log, bb, args.interval_length)
             dump(embedding_df, embedding_df_file)
         logging.info(f"Saving BBV embedding dataframe to {embedding_df_file}")

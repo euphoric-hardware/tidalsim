@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Iterator
+from typing import List, Iterator, Iterable
 from pathlib import Path
 from math import ceil
 from enum import IntEnum, Enum
@@ -39,7 +39,6 @@ class CacheParams:
   set_bits: int = field(init=False)
   tag_bits: int = field(init=False)
   coherency_bits: int = 2  # see CohStatus
-  tag_bits: int = field(init=False)
   tag_hex_chars: int = field(init=False)
   data_hex_chars: int = field(init=False)
   block_size_bits: int = field(init=False)
@@ -81,7 +80,7 @@ class CacheState:
           data = data | ((byte & 0xff) << (i*8))
         self.array[way_idx][set_idx] = CacheBlock(data, tag, CohStatus.Dirty)
 
-  def way_idx_iterator(self, reverse_ways: bool) -> Iterator[int]:
+  def way_idx_iterator(self, reverse_ways: bool) -> Iterable[int]:
     return reversed(range(self.params.n_ways)) if reverse_ways else range(self.params.n_ways)
 
   def ways_str(self, reverse_ways: bool) -> str:
@@ -141,12 +140,12 @@ class CacheState:
   def dump_data_arrays(self, dir: Path, prefix: str) -> None:
     for way_idx in range(self.params.n_ways):
       bin_for_way = self.data_array_binary_str(way_idx).split('\n')
-      data_to_write = [[] for _ in range(self.params.data_bus_bytes)]
+      data_to_write: List[List[str]] = [[] for _ in range(self.params.data_bus_bytes)]
       for line in bin_for_way:
-        # Each line goes from MSB byte to LSB byte but the RAMs are from LSB byte to MSB byte
-        line_bytes_chunked = [''.join(x) for x in list(chunked(line, self.params.data_bus_bytes, strict=True))]
-        line_bytes = list(reversed(line_bytes_chunked))
         # We must slice each line byte-wise since the L1d is made up of byte-wise RAMs
+        line_bytes_chunked = [''.join(x) for x in list(chunked(line, 8, strict=True))]
+        # Each line goes from MSB byte to LSB byte but the RAMs are from LSB byte to MSB byte
+        line_bytes = list(reversed(line_bytes_chunked))
         for byte_idx in range(self.params.data_bus_bytes):
           data_to_write[byte_idx].append(line_bytes[byte_idx])
       for byte_idx in range(self.params.data_bus_bytes):

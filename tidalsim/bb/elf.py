@@ -7,7 +7,8 @@ import re
 import sys
 import logging
 
-from tidalsim.bb.common import control_insts, no_target_insts, BasicBlocks
+from tidalsim.bb.common import BasicBlocks
+from tidalsim.util.spike_log import control_insts, no_target_insts
 
 # Match leading zeros, capture addr, match horizontal whitespace, capture <name> of fn, :, a bunch of chars, newline
 function_header_pattern = re.compile(r"^0*(?P<addr>[0-9a-f]+)[^\S\r\n]+(?P<name><\S+>):.*\n$")
