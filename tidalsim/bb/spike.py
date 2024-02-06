@@ -10,28 +10,10 @@ import pandas as pd
 from pandera.typing import DataFrame
 from sklearn.preprocessing import normalize
 
-from tidalsim.bb.common import BasicBlocks, control_insts
+from tidalsim.util.spike_log import SpikeTraceEntry
+from tidalsim.bb.common import BasicBlocks
 from tidalsim.modeling.schemas import *
 
-@dataclass
-class SpikeTraceEntry:
-    pc: int
-    decoded_inst: str
-
-def parse_spike_log(log_lines: Iterator[str]) -> Iterator[SpikeTraceEntry]:
-    for line in log_lines:
-        s = line.split()
-        if s[2][0] == '>':
-            # TODO: add the spike extracted section labels to SpikeTraceEntry
-            continue
-        else:
-            pc = int(s[2][2:], 16)
-            decoded_inst = s[4]
-            # Ignore spike trace outside DRAM
-            if pc < 0x8000_0000:
-                continue
-            else:
-                yield SpikeTraceEntry(pc, decoded_inst)
 
 def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     # Make initial pass through the Spike dump
@@ -45,10 +27,10 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     for trace_entry in tqdm(trace):
         if start is None:
             start = trace_entry.pc
-        if trace_entry.decoded_inst in control_insts:
+        if trace_entry.is_control_inst():
             intervals[start:trace_entry.pc + 1] = None # Intervals are inclusive of the start, but exclusive of the end
             start = None
-        if previous_inst and (abs(trace_entry.pc - previous_inst.pc) > 4) and previous_inst.decoded_inst not in control_insts:
+        if previous_inst and (abs(trace_entry.pc - previous_inst.pc) > 4) and not previous_inst.is_control_inst():
             raise RuntimeError(f"Control diverged from PC: {hex(previous_inst.pc)} \
                     to PC: {hex(trace_entry.pc)}, but the last instruction {previous_inst.decoded_inst} \
                     wasn't a control instruction")

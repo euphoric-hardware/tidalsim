@@ -7,13 +7,13 @@ from tidalsim.bb.spike import *
 class TestBBVEmbedding:
     def test_embedding(self) -> None:
         trace = [
-            SpikeTraceEntry(0x4, ""),
-            SpikeTraceEntry(0x8, ""),
-            SpikeTraceEntry(0xc, ""),
-            SpikeTraceEntry(0x10, ""),
-            SpikeTraceEntry(0x18, ""),
-            SpikeTraceEntry(0x4, ""),
-            SpikeTraceEntry(0x8, ""),
+            SpikeTraceEntry(0x4,  "", 0),
+            SpikeTraceEntry(0x8,  "", 1),
+            SpikeTraceEntry(0xc,  "", 2),
+            SpikeTraceEntry(0x10, "", 3),
+            SpikeTraceEntry(0x18, "", 4),
+            SpikeTraceEntry(0x4,  "", 5),
+            SpikeTraceEntry(0x8,  "", 6),
         ]
         extracted_bb = BasicBlocks(
             IntervalTree([Interval(0, 0x8+1, 0), Interval(0xc, 0x18+1, 1)])

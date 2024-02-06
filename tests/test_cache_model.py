@@ -42,12 +42,12 @@ class TestCacheModel:
     def test_data_array_bin(self) -> None:
         data_bus_bytes = 8
         for way_idx in range(self.params.n_ways):
-            s = self.state.data_array_binary_str(way_idx, data_bus_bytes)
+            s = self.state.data_array_binary_str(way_idx)
             s_split = s.split('\n')
             for set_idx in range(self.params.n_sets):
                 data_from_bin = s_split[data_bus_bytes*set_idx:data_bus_bytes*(set_idx+1)]
                 assert int(''.join(reversed(data_from_bin)), 2) == self.state.array[way_idx][set_idx].data
-        print(self.state.data_array_binary_str(way_idx=0, data_bus_bytes=data_bus_bytes))
+        print(self.state.data_array_binary_str(way_idx=0))
 
     def test_dump_data_arrays(self, tmp_path: Path) -> None:
         prefix = "dcache_data_array"
