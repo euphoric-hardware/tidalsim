@@ -7,12 +7,6 @@ class TestSpikeCkpt:
         assert get_spike_cmd(Path.cwd(), 1, 'rv64gc', Path.cwd() / "cmds.txt", inst_log=True, commit_log=True, suppress_exit=True) == \
                 f"spike -d --debug-cmd={Path.cwd() / 'cmds.txt'} -p1 --pmpregions=0 --isa=rv64gc -m{0x8000_0000}:{0x1000_0000} -l --log-commits +suppress-exit {Path.cwd().resolve()}"
 
-    def test_n_insts_to_inst_steps(self) -> None:
-        assert n_insts_to_inst_steps([100, 1000, 2000]) == [100, 900, 1000]
-        assert n_insts_to_inst_steps([100]) == [100]
-        with pytest.raises(Exception):
-            n_insts_to_inst_steps([100, 1000, 900]) == [100, 900, 1000]
-
     def test_arch_state_dump_cmds(self) -> None:
         cmds = arch_state_dump_cmds(2, Path.cwd() / "mem")
         assert f"dump {(Path.cwd() / 'mem').resolve()}" in cmds

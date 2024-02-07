@@ -15,6 +15,7 @@ from tidalsim.util.spike_log import parse_spike_log
 from tidalsim.bb.spike import spike_trace_to_bbs, spike_trace_to_embedding_df, BasicBlocks
 from tidalsim.bb.elf import objdump_to_bbs
 from tidalsim.util.pickle import dump, load
+from tidalsim.util.random import inst_points_to_inst_steps
 from tidalsim.modeling.clustering import *
 from tidalsim.modeling.schemas import *
 
@@ -106,7 +107,7 @@ def main():
             logging.info(f"Golden performance results already exist in {golden_sim_dir}, not-rerunning RTL simulation")
         else:
             logging.info(f"Taking spike checkpoint at instruction 0 to inject into RTL simulation")
-            gen_checkpoints(binary, start_pc=0x8000_0000, n_insts=[0], ckpt_base_dir=golden_sim_dir, n_harts=n_harts, isa=isa)
+            gen_checkpoints(binary, start_pc=0x8000_0000, inst_points=[0], ckpt_base_dir=golden_sim_dir, n_harts=n_harts, isa=isa)
             inst_0_ckpt = golden_sim_dir / "0x80000000.0"
             run_rtl_sim(
                 simulator=simulator,
@@ -233,7 +234,7 @@ def main():
         logging.info("Checkpoints already exist, not rerunning spike")
     else:
         logging.info("Generating arch checkpoints with spike")
-        gen_checkpoints(binary, start_pc=0x8000_0000, n_insts=checkpoint_insts, ckpt_base_dir=checkpoint_dir, n_harts=n_harts, isa=isa)
+        gen_checkpoints(binary, start_pc=0x8000_0000, inst_points=checkpoint_insts, ckpt_base_dir=checkpoint_dir, n_harts=n_harts, isa=isa)
 
     # Run each checkpoint in RTL sim and extract perf metrics
     perf_files_exist = all([(c / "perf.csv").exists() for c in checkpoints])

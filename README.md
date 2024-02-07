@@ -23,7 +23,7 @@
 
 ### Manual Checkpoint Generation
 
-- `gen-ckpt --binary $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add --dest-dir checkpoints --n-insts 0 100 200 300`
+- `gen-ckpt --binary $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add --dest-dir checkpoints --inst-points 0 100 200 300`
     - This will take checkpoints after 0, 100, 200, 300 instructions have committed
 - `head -n 3 checkpoints/rv64ui-p-add.loadarch/*/loadarch`
     - This will show the PC and priv mode for each checkpoint taken

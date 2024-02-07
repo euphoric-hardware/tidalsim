@@ -6,11 +6,7 @@ from enum import IntEnum, Enum
 
 from more_itertools import chunked
 
-def clog2(x):
-  """Ceiling of log2"""
-  if x <= 0:
-    raise ValueError("domain error")
-  return (x-1).bit_length()
+from tidalsim.util.random import clog2
 
 # Coherency status, see ClientMetadata / ClientStates in rocket-chip
 class CohStatus(IntEnum):

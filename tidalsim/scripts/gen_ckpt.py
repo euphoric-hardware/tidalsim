@@ -21,9 +21,9 @@ def main():
     parser.add_argument('--pc', type=auto_int, default=0x80000000, help='Advance to this PC before taking any checkpoints [default 0x80000000]')
     parser.add_argument('--binary', type=str, required=True, help='Binary to run in spike')
     parser.add_argument('--dest-dir', type=str, required=True, help='Directory in which checkpoints are dumped')
-    parser.add_argument('--n-insts', required=True, nargs='+', help='Take checkpoints after n_insts have committed after advancing to the PC. This can be a list e.g. --n-insts 100 1000 2000')
+    parser.add_argument('--inst-points', required=True, nargs='+', help='Take checkpoints after [inst_points] have committed after advancing to the PC. This can be a list e.g. --inst-points 100 1000 2000')
     args = parser.parse_args()
-    assert args.pc is not None and args.n_insts is not None
+    assert args.pc is not None and args.inst_points is not None
     dest_dir = Path(args.dest_dir)
     dest_dir.mkdir(exist_ok=True)
     binary = Path(args.binary)
@@ -32,4 +32,4 @@ def main():
     # Store checkpoints in the base directory associated with the binary
     base_dir = dest_dir / f"{binary.name}.loadarch"
     base_dir.mkdir(exist_ok=True)
-    gen_checkpoints(binary, args.pc, [int(x) for x in args.n_insts], base_dir, args.n_harts, args.isa)
+    gen_checkpoints(binary, args.pc, [int(x) for x in args.inst_points], base_dir, args.n_harts, args.isa)

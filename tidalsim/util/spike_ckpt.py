@@ -9,6 +9,7 @@ import shutil
 from joblib import Parallel, delayed
 
 from tidalsim.util.cli import run_cmd, run_cmd_capture
+from tidalsim.util.random import inst_points_to_inst_steps
 
 def get_spike_cmd(binary: Path, n_harts: int, isa: str, debug_file: Optional[Path], inst_log: bool, commit_log: bool, suppress_exit: bool) -> str:
     # TODO: add pmp CSR dumping commands to spike
@@ -21,11 +22,6 @@ def get_spike_cmd(binary: Path, n_harts: int, isa: str, debug_file: Optional[Pat
     commit_log_flag = "--log-commits" if commit_log else ""
     suppress_exit_flag = "+suppress-exit" if suppress_exit else ""  # This is an HTIF flag and must be passed last!
     return f"spike {debug_flags} {spike_flags} {inst_log_flag} {commit_log_flag} {suppress_exit_flag} {binary.resolve()}"
-
-def n_insts_to_inst_steps(n_insts: List[int]) -> List[int]:
-    inst_steps = [n_insts[0]] + [(n_insts[i] - n_insts[i-1]) for i in range(1, len(n_insts))]
-    assert all(step >= 0 for step in inst_steps)
-    return inst_steps
 
 # Returns a string of commands for spike's interactive (debug) mode that will print
 # all the non-DRAM architectural state of a hart to stdout
@@ -67,14 +63,14 @@ mtimecmp {h}\n""" \
     return mem_dump + ''.join([reg_dump(h) for h in range(nharts)])
 
 # Returns a string of commands for spike debug mode that will execute the binary until
-# PC = [start_pc], then take checkpoints at the total instruction commit points in [n_insts]
-def spike_cmds(start_pc: int, n_insts: List[int], n_harts: int, ckpt_base_dir: Path) -> str:
-    inst_steps = n_insts_to_inst_steps(n_insts)
+# PC = [start_pc], then take checkpoints at the total instruction commit points in [inst_points]
+def spike_cmds(start_pc: int, inst_points: List[int], n_harts: int, ckpt_base_dir: Path) -> str:
+    inst_steps = inst_points_to_inst_steps(inst_points)
     # Run program until PC = start_pc
     wait_for_pc = f"until pc 0 {hex(start_pc)}\n"
 
     def per_interval_cmds():
-        for inst_num, inst_step in zip(n_insts, inst_steps):
+        for inst_num, inst_step in zip(inst_points, inst_steps):
             # Run [inst_step] instructions
             run_n_insts = f"rs {inst_step}\n"
             # Dump arch state, with memory in [ckpt_base_dir]/[start_pc].[inst_num]/mem.0x80000000.bin
@@ -83,17 +79,17 @@ def spike_cmds(start_pc: int, n_insts: List[int], n_harts: int, ckpt_base_dir: P
     exit_spike = "quit"
     return wait_for_pc + ''.join(list(per_interval_cmds())) + exit_spike
 
-def get_ckpt_dirs(ckpt_base_dir: Path, start_pc: int, n_insts: List[int]) -> List[Path]:
-    return [ckpt_base_dir / f"{hex(start_pc)}.{i}" for i in n_insts]
+def get_ckpt_dirs(ckpt_base_dir: Path, start_pc: int, inst_points: List[int]) -> List[Path]:
+    return [ckpt_base_dir / f"{hex(start_pc)}.{i}" for i in inst_points]
 
-# Take checkpoints after reaching [pc] at every instruction commit point in [n_insts]
-# n_insts = [100, 1000, 2000] means
+# Take checkpoints after reaching [pc] at every instruction commit point in [inst_points]
+# inst_points = [100, 1000, 2000] means
 # Take snapshots at the points where 100/1000/2000 instructions have committed
-def gen_checkpoints(binary: Path, start_pc: int, n_insts: List[int], ckpt_base_dir: Path, n_harts: int = 1, isa: str = 'rv64gc') -> None:
+def gen_checkpoints(binary: Path, start_pc: int, inst_points: List[int], ckpt_base_dir: Path, n_harts: int = 1, isa: str = 'rv64gc') -> None:
     logging.info(f"Placing checkpoints in {ckpt_base_dir}")
 
     # Store each checkpoint in a subdirectory underneath [ckpt_base_dir]
-    ckpt_dirs = get_ckpt_dirs(ckpt_base_dir, start_pc, n_insts)
+    ckpt_dirs = get_ckpt_dirs(ckpt_base_dir, start_pc, inst_points)
     logging.info(f"Creating checkpoint directories: {ckpt_dirs}")
     for ckpt_dir in ckpt_dirs:
         if ckpt_dir.exists():
@@ -104,7 +100,7 @@ def gen_checkpoints(binary: Path, start_pc: int, n_insts: List[int], ckpt_base_d
     spike_cmds_file = ckpt_base_dir / "spike_cmds.txt"
     logging.info(f"Generating spike interactive commands in {spike_cmds_file}")
     with spike_cmds_file.open('w') as f:
-        f.write(spike_cmds(start_pc, n_insts, n_harts, ckpt_base_dir))
+        f.write(spike_cmds(start_pc, inst_points, n_harts, ckpt_base_dir))
 
     # The spike invocation command itself
     spike_cmd = get_spike_cmd(binary, n_harts, isa, spike_cmds_file, inst_log=False, commit_log=False, suppress_exit=True)
