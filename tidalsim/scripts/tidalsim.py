@@ -60,6 +60,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('-e', '--elf', action='store_true', help='Run ELF-based basic block extraction')
     parser.add_argument('--golden-sim', action='store_true', help='Run full RTL simulation of the binary and save performance metrics')
+    parser.add_argument('--cache-warmup', action='store_true', help='Use functional warmup to initialize the L1d cache at the start of each RTL simulation')
     args = parser.parse_args()
 
     # Parse args
@@ -88,13 +89,14 @@ def main():
     logging.info(f"Working directory set to {binary_dir}")
 
     # Create the spike commit log if it doesn't already exist
-    spike_trace_file = binary_dir / "spike.trace"
+    spike_trace_file = (binary_dir / "spike.full_trace") if args.cache_warmup else (binary_dir / "spike.trace")
+    full_commit_log = args.cache_warmup
     if spike_trace_file.exists():
         assert spike_trace_file.is_file()
         logging.info(f"Spike trace file already exists in {spike_trace_file}, not rerunning spike")
     else:
         logging.info(f"Spike trace doesn't exist at {spike_trace_file}, running spike")
-        spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, inst_log=True, commit_log=False, suppress_exit=False)
+        spike_cmd = get_spike_cmd(binary, n_harts, isa, debug_file=None, inst_log=True, commit_log=full_commit_log, suppress_exit=False)
         run_cmd_pipe(spike_cmd, cwd=dest_dir, stderr=spike_trace_file)
 
     if args.golden_sim:
@@ -154,12 +156,13 @@ def main():
         else:
             logging.info(f"Running spike commit log based BB extraction")
             with spike_trace_file.open('r') as f:
-                spike_trace_log = parse_spike_log(f, False)
+                spike_trace_log = parse_spike_log(f, full_commit_log)
                 bb = spike_trace_to_bbs(spike_trace_log)
                 dump(bb, spike_bb_file)
             logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
 
     logging.debug(f"Basic blocks: {bb}")
+    sys.exit(0)
 
     # Given an interval length, compute the BBV-based interval embedding
 

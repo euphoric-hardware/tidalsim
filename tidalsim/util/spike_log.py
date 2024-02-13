@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Iterator, Optional, List, Iterable
 from enum import IntEnum
 from more_itertools import chunked
+import logging
 
 # RISC-V Psuedoinstructions: https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#pseudoinstructions
 branches = [
@@ -45,20 +46,24 @@ class SpikeTraceEntry:
 # [full_commit_log] = True if spike was ran with '-l --log-commits', False if spike is only run with '-l'
 def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator[SpikeTraceEntry]:
     inst_count = 0
-    iterator: Iterable[List[str]] = chunked(log_lines, 2) if full_commit_log else [[x, ""] for x in log_lines]
-    for line in iterator:
-        # Example of line1 (regular commit log)
+    for line in log_lines:
+        # Example of first line (regular commit log)
         # core   0: 0x0000000080001a8e (0x00009522) c.add   a0, s0
-        line1 = line[0]
-        s1 = line1.split()
-        if s1[2][0] == '>':
-            continue  # this is a spike-decoded label
-        pc = int(s1[2][2:], 16)
-        decoded_inst = s1[4]
+        s = line.split()
+        if s[2][0] == '>':
+            continue  # this is a spike-decoded label, ignore it
+        pc = int(s[2][2:], 16)
+        decoded_inst = s[4]
         # Ignore spike trace outside DRAM
         if pc < 0x8000_0000:
+            if full_commit_log:
+                next(log_lines, None)
             continue
-        else:
+        commit_info: Optional[SpikeCommitInfo] = None
+        if full_commit_log:
+            # If the current line is a valid instruction, then we can be sure the next line
+            # will contain the commit info
+            line2 = next(log_lines, None)
             # Examples of line2 (only seen in full commit log)
 
             # Regular instruction (single writeback)
@@ -72,14 +77,11 @@ def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator
             # Load instruction
             # core   0: 3 0x0000000080000250 (0x638c) x11 0x0000000080001d68 mem 0x0000000080001d90
             # <hartid>: <priv>          <PC>   <inst> <rd>       <load data>            <load addr>
-            commit_info: Optional[SpikeCommitInfo] = None
-            if full_commit_log:
-                line2 = line[1]
-                s2 = line2.split()
-                s2_len = len(s2)
-                if s2_len == 8 and s2[5] == "mem":  # store instruction
-                    commit_info = SpikeCommitInfo(address=int(s2[6][2:], 16), data=int(s2[7][2:], 16), op=Op.Store)
-                elif s2_len == 9 and s2[7] == "mem":  # load instruction
-                    commit_info = SpikeCommitInfo(address=int(s2[8][2:], 16), data=int(s2[6][2:], 16), op=Op.Load)
-            yield SpikeTraceEntry(pc, decoded_inst, inst_count, commit_info)
-            inst_count += 1
+            s2 = line2.split()
+            s2_len = len(s2)
+            if s2_len == 8 and s2[5] == "mem":  # store instruction
+                commit_info = SpikeCommitInfo(address=int(s2[6][2:], 16), data=int(s2[7][2:], 16), op=Op.Store)
+            elif s2_len == 9 and s2[7] == "mem":  # load instruction
+                commit_info = SpikeCommitInfo(address=int(s2[8][2:], 16), data=int(s2[6][2:], 16), op=Op.Load)
+        yield SpikeTraceEntry(pc, decoded_inst, inst_count, commit_info)
+        inst_count += 1

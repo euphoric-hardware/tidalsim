@@ -74,3 +74,23 @@ core   0: 3 0x0000000080000050 (0x00301073) c1_fflags 0x0000000000000000 c2_frm 
             SpikeTraceEntry(0x8000_004c, "csrw", 1),
             SpikeTraceEntry(0x8000_0050, "csrw", 2)
         ]
+
+    def test_spike_log_disasm_labels(self) -> None:
+        # A label between two instructions shouldn't break the parser
+        lines = """core   0: 0x0000000000001008 (0xf1402573) csrr    a0, mhartid
+core   0: 3 0x0000000000001008 (0xf1402573) x10 0x0000000000000000
+core   0: 0x000000000000100c (0x0182b283) ld      t0, 24(t0)
+core   0: 3 0x000000000000100c (0x0182b283) x5  0x0000000080000000 mem 0x0000000000001018
+core   0: 0x0000000000001010 (0x00028067) jr      t0
+core   0: 3 0x0000000000001010 (0x00028067)
+core   0: >>>>  _start
+core   0: 0x0000000080000000 (0x00004081) c.li    ra, 0
+core   0: 3 0x0000000080000000 (0x4081) x1  0x0000000000000000
+core   0: 0x0000000080000002 (0x00004101) c.li    sp, 0
+core   0: 3 0x0000000080000002 (0x4101) x2  0x0000000000000000""".split('\n')
+        result = list(parse_spike_log(iter(lines), True))
+        assert result == [
+            SpikeTraceEntry(0x8000_0000, "c.li", 0),
+            SpikeTraceEntry(0x8000_0002, "c.li", 1)
+        ]
+
