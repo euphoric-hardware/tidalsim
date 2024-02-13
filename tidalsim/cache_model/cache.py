@@ -54,6 +54,7 @@ class CacheParams:
     self.coherency_mask = (1 << self.coherency_bits) - 1
     self.data_rows_per_set = self.block_size_bytes // self.data_bus_bytes
 
+
 @dataclass
 class CacheState:
   params: CacheParams

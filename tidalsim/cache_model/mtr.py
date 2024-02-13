@@ -1,7 +1,9 @@
-from typing import Iterator, TypeAlias, Dict, Optional, List
+from typing import Iterator, TypeAlias, Dict, Optional, List, Tuple
 from dataclasses import dataclass, field
 import copy
+import itertools
 
+from tidalsim.cache_model.cache import CacheParams, CacheState, CohStatus, Array
 from tidalsim.util.spike_log import SpikeTraceEntry, SpikeCommitInfo, Op
 from tidalsim.util.random import clog2, inst_points_to_inst_steps
 
@@ -16,6 +18,17 @@ class MTREntry:
   last_readtime: Optional[int]  # will become a List[Optional[int]] in multicore MTR
   last_writetime: Optional[int]
   last_writer: Optional[int] = None  # only used in multicore MTR
+
+  def get_last_touched_time(self) -> int:
+    # Treat read and write access times identically for now
+    last_writetime = self.last_writetime if self.last_writetime is not None else 0
+    last_readtime = self.last_readtime if self.last_readtime is not None else 0
+    return max(last_writetime, last_readtime)
+
+  def __lt__(self, other) -> bool:
+    # We want MTREntry's to be sorted from most recently touched to least recently touched
+    return self.get_last_touched_time() > other.get_last_touched_time()
+
 
 @dataclass
 class MTR:
@@ -39,6 +52,28 @@ class MTR:
       self.table[block_addr].last_readtime = timestamp
     else:
       self.table[block_addr].last_writetime = timestamp
+
+  def as_cache(self, params: CacheParams) -> CacheState:
+    def get_set_idx(block_addr: CacheBlockAddr) -> int:
+      return (block_addr & ((1 << params.set_bits) - 1))
+
+    assert params.block_size_bytes == self.block_size_bytes
+    cache = CacheState(params)
+    # Group block addresses by set
+    block_addrs = sorted(self.table.keys(), key=get_set_idx)
+    sets = itertools.groupby(block_addrs, key=get_set_idx)
+    for set_idx, set_block_addrs in sets:
+      set_mtr_entries: List[Tuple[CacheBlockAddr, MTREntry]] = [(a, self.table[a]) for a in set_block_addrs]
+      # Figure out which addrs should be resident in this cache using LRU
+      set_mtr_entries.sort(key=lambda x: x[1])
+      resident_block_addrs = [x[0] for x in set_mtr_entries[:params.n_ways]]
+      for way_idx, block_addr in enumerate(resident_block_addrs):
+        # Shift away the set bits and mask the tag bits
+        tag = (block_addr >> params.set_bits) & params.tag_mask
+        cache_block = cache.array[way_idx][set_idx]
+        cache_block.tag = tag
+        cache_block.coherency = CohStatus.Dirty
+    return cache
 
 # Given a spike log, an initial MTR state and the number of instructions to pull from
 # the spike log, return a *new* MTR state after consuming instructions from the log iterator
