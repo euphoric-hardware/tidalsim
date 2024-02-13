@@ -162,7 +162,6 @@ def main():
             logging.info(f"Spike commit log based BB extraction results saved to {spike_bb_file}")
 
     logging.debug(f"Basic blocks: {bb}")
-    sys.exit(0)
 
     # Given an interval length, compute the BBV-based interval embedding
 
