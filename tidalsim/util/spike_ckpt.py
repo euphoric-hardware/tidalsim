@@ -92,9 +92,14 @@ def gen_checkpoints(binary: Path, start_pc: int, inst_points: List[int], ckpt_ba
     ckpt_dirs = get_ckpt_dirs(ckpt_base_dir, start_pc, inst_points)
     logging.info(f"Creating checkpoint directories: {ckpt_dirs}")
     for ckpt_dir in ckpt_dirs:
-        if ckpt_dir.exists():
-            shutil.rmtree(ckpt_dir)
         ckpt_dir.mkdir(exist_ok=True)
+
+    # Delete old artifacts if they exist
+    for f in ['loadarch', 'run_spike.sh', 'spike_cmds.txt']:
+        (ckpt_base_dir / f).unlink(missing_ok=True)
+    for ckpt_dir in ckpt_dirs:
+        (ckpt_dir / 'loadarch').unlink(missing_ok=True)
+        (ckpt_dir / 'mem.elf').unlink(missing_ok=True)
 
     # Commands for spike to run in debug mode
     spike_cmds_file = ckpt_base_dir / "spike_cmds.txt"

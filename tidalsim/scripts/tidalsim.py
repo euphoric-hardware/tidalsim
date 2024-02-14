@@ -6,6 +6,7 @@ import sys
 from joblib import Parallel, delayed
 import logging
 import pdb
+import pprint
 from pandera.typing import DataFrame
 import numpy as np
 
@@ -18,6 +19,7 @@ from tidalsim.util.pickle import dump, load
 from tidalsim.util.random import inst_points_to_inst_steps
 from tidalsim.modeling.clustering import *
 from tidalsim.modeling.schemas import *
+from tidalsim.cache_model.mtr import mtr_ckpts_from_inst_points, MTR
 
 
 def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_instructions: Optional[int], chipyard_root: Path, binary: Path, loadarch: Path, cwd: Path, suppress_exit: bool, timeout_cycles: int = 10_000_000) -> None:
@@ -179,7 +181,7 @@ def main():
     else:
         logging.info(f"Computing BBV embedding dataframe")
         with spike_trace_file.open('r') as spike_trace:
-            spike_trace_log = parse_spike_log(spike_trace, False)
+            spike_trace_log = parse_spike_log(spike_trace, args.cache_warmup)
             embedding_df = spike_trace_to_embedding_df(spike_trace_log, bb, args.interval_length)
             dump(embedding_df, embedding_df_file)
         logging.info(f"Saving BBV embedding dataframe to {embedding_df_file}")
@@ -225,12 +227,34 @@ def main():
     to_simulate = clustering_df.loc[clustering_df['chosen_for_rtl_sim'] == True].groupby('cluster_id', as_index=False).nth(0)
     logging.info(f"The following rows are closest to the cluster centroids\n{to_simulate}")
 
-    # Capture arch checkpoints from spike
-    # Cache this result if all the checkpoints are already available
+    # Create the directories for each interval we want to simulate in RTL simulation
     checkpoint_insts: List[int] = to_simulate['inst_start'].tolist()
     checkpoint_dir = cluster_dir / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True)
     checkpoints = [checkpoint_dir / f"0x80000000.{i}" for i in checkpoint_insts]
+    for c in checkpoints:
+        c.mkdir(exist_ok=True)
+
+    # Construct MTR checkpoints for the L1d cache
+    mtr_ckpts: Optional[List[MTR]] = None
+    if args.cache_warmup:
+        mtr_ckpts_exist = [(c / "mtr.pickle").exists() for c in checkpoints]
+        if all(mtr_ckpts_exist):
+            logging.info(f"MTR checkpoints already exist for each interval to simulate")
+            mtr_ckpts = [load(c / "mtr.pickle") for c in checkpoints]
+        else:
+            logging.info(f"Generating MTR checkpoints at inst points {checkpoint_insts}")
+            with spike_trace_file.open('r') as f:
+                spike_trace_log = parse_spike_log(f, full_commit_log)
+                mtr_ckpts = mtr_ckpts_from_inst_points(spike_trace_log, block_size=64, inst_points=checkpoint_insts)
+            #pp = pprint.PrettyPrinter(indent=2)
+            for mtr_ckpt, ckpt_dir in zip(mtr_ckpts, checkpoints):
+                dump(mtr_ckpt, ckpt_dir / "mtr.pickle")
+                with (ckpt_dir / "mtr.pretty").open('w') as f:
+                    pprint.pprint(mtr_ckpt, stream=f)
+
+    # Capture arch checkpoints from spike
+    # Cache this result if all the checkpoints are already available
     checkpoints_exist = [(c / "loadarch").exists() and (c / "mem.elf").exists() for c in checkpoints]
     if all(checkpoints_exist):
         logging.info("Checkpoints already exist, not rerunning spike")
