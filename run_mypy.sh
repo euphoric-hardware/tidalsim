@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-mypy -p tidalsim -p tests --ignore-missing-imports --exclude archive --check-untyped-defs
+poetry run mypy -p tidalsim -p tests --ignore-missing-imports --exclude archive --check-untyped-defs

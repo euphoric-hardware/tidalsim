@@ -1,14 +1,13 @@
-from intervaltree import Interval, IntervalTree
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Match, TextIO
 from itertools import count
+from typing_extensions import cast
 from tqdm import tqdm
 import re
 import sys
 import logging
 
-from tidalsim.bb.common import BasicBlocks
-from tidalsim.util.spike_log import control_insts, no_target_insts
+from tidalsim.bb.common import Marker, control_insts, events_to_markers, intervals_to_events, no_target_insts, BasicBlocks, Interval, Event
 
 # Match leading zeros, capture addr, match horizontal whitespace, capture <name> of fn, :, a bunch of chars, newline
 function_header_pattern = re.compile(r"^0*(?P<addr>[0-9a-f]+)[^\S\r\n]+(?P<name><\S+>):.*\n$")
@@ -34,9 +33,8 @@ def get_next_pc(instr: ObjdumpInstrEntry) -> int:
     increment = len(instr.instr_bits)//2
     return instr.pc + increment
 
-def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
-
-    basic_blocks = IntervalTree()
+def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], List[Tuple[int, int]]]:
+    intervals = []
     all_control_instrs = []
     no_target_identified = 0
 
@@ -105,42 +103,29 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], IntervalTree]:
 
     while func_start_pc := find_next_func(f):
         func_end_pc = parse_func(f)
-        basic_blocks.add(Interval(func_start_pc, func_end_pc, next_bbid()))
+        intervals += [(func_start_pc, func_end_pc)]
 
     logging.info(f"Found {len(all_control_instrs)} control instructions")
     logging.info(f"No target was identified for {no_target_identified} instructions")
 
-    return all_control_instrs, basic_blocks
-
-def get_split_bbid(iv: Interval, islower: bool) -> int:
-    if islower:
-        return iv.data
-    else:
-        return next_bbid()
+    return all_control_instrs, intervals
 
 # Splitting logic
-def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial_basic_blocks: IntervalTree) -> IntervalTree:
-
-    all_basic_blocks = initial_basic_blocks
-
-    def start_block_at(pc: int) -> None:
-        all_basic_blocks.slice(pc, get_split_bbid)
-
-    def end_block_after(control_instr: ObjdumpInstrEntry) -> None:
-        all_basic_blocks.slice(get_next_pc(control_instr), get_split_bbid)
+def do_basic_block_analysis(all_control_instrs: List[ObjdumpInstrEntry], initial_intervals: List[Interval]) -> List[Marker]:
+    events = intervals_to_events(initial_intervals)
 
     for control_instr in tqdm(all_control_instrs):
         if control_instr.target is None:
-            end_block_after(control_instr)
+            events += [(control_instr.pc, 0)]
             logging.debug(f"Handled dynamic jump by ending basic block at {control_instr.pc}")
         else:
-            end_block_after(control_instr)
-            start_block_at(control_instr.target)
+            events += [(control_instr.pc, 0)]
+            events += [(control_instr.target, control_instr.target + 1)]
             logging.debug(f"Handled {control_instr}")
 
-    return all_basic_blocks
+    return events_to_markers(events)
 
 def objdump_to_bbs(f: TextIO) -> BasicBlocks:
     all_control_instrs, inital_basic_blocks = parseFile(f)
-    final_basic_blocks = do_basic_block_analysis(all_control_instrs, inital_basic_blocks)
-    return BasicBlocks(pc_to_bb_id=final_basic_blocks)
+    markers = do_basic_block_analysis(all_control_instrs, inital_basic_blocks)
+    return BasicBlocks(markers=markers)
