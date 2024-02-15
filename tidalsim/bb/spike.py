@@ -11,11 +11,8 @@ from tidalsim.bb.common import BasicBlocks, control_insts, intervals_to_markers
 from tidalsim.modeling.schemas import *
 
 def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
-    # Make initial pass through the Spike dump
-    # A new interval is recorded when the PC changes by more than 4
     # The end of the previous Interval is the PC that was jumped from
     # The start of the next Interval is the PC that was jumped to
-    # No data is stored, speeds up the lookup significantly
     start = None
     previous_inst: Optional[SpikeTraceEntry] = None
     intervals: List[Tuple[int, int]] = []
@@ -23,7 +20,9 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
         if start is None:
             start = trace_entry.pc
         if trace_entry.is_control_inst():
-            intervals += [(start, trace_entry.pc+1)] # Intervals are inclusive of the start, but exclusive of the end
+            # A new interval is recorded when a control instruction is encountered
+            # Intervals are inclusive of the start, but exclusive of the end
+            intervals += [(start, trace_entry.pc+1)]
             start = None
         if previous_inst and (abs(trace_entry.pc - previous_inst.pc) > 4) and not previous_inst.is_control_inst():
             raise RuntimeError(f"Control diverged from PC: {hex(previous_inst.pc)} \

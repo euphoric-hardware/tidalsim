@@ -32,7 +32,8 @@ class TestSpikeBBExtraction:
             (0x24+1, None),
         ])
         assert result.pc_to_bb_id(0x8) == 0
-        assert result.pc_to_bb_id(0x10) == None # Note 2 is not a real basic block, since it's empty dead space
+        assert result.pc_to_bb_id(0xc) == 0
+        assert result.pc_to_bb_id(0x10) == None
         assert result.pc_to_bb_id(0x20) == 1
         assert result.pc_to_bb_id(0x24) == 1
         assert result.pc_to_bb_id(0x26) == None

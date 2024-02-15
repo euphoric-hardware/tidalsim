@@ -77,6 +77,7 @@ def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator
             # Load instruction
             # core   0: 3 0x0000000080000250 (0x638c) x11 0x0000000080001d68 mem 0x0000000080001d90
             # <hartid>: <priv>          <PC>   <inst> <rd>       <load data>            <load addr>
+            assert line2 is not None
             s2 = line2.split()
             s2_len = len(s2)
             if s2_len == 8 and s2[5] == "mem":  # store instruction
