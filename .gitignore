@@ -10,3 +10,4 @@ m5out
 notebooks/*.svg
 notebooks/*.pdf
 notebooks/*.png
+.pyright*

@@ -7,6 +7,7 @@
     - Add `POETRY_HOME/bin` to your `$PATH`
     - Add `export PYTHON_KEYRING_BACKEND="keyring.backends.null.Keyring"` to your `~/.bashrc`
         - There is a [bug with an older version of pip](https://github.com/python-poetry/poetry/issues/3365)
+    - Run `poetry self add poetry-plugin-dotenv`
 - Clone Chipyard and use the `multi-level-sim` branch
 - Run [Chipyard setup](https://chipyard.readthedocs.io/en/stable/Chipyard-Basics/Initial-Repo-Setup.html) as usual
     - Install [miniconda3](https://github.com/conda-forge/miniforge/#download)

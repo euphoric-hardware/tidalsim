@@ -77,7 +77,7 @@ class TestMTRCache:
         params = self.cache_params(1)
         cache = self.mtr.as_cache(params)
         print(cache.array_pretty_str(Array.Tag))
-        expected = {
+        expected: Dict[Tuple[int, int], Tuple[int, CohStatus]] = {
             (0, 0): (16, CohStatus.Dirty),
             (0, 1): (1, CohStatus.Dirty),
             (0, 2): (0, CohStatus.Nothing),
@@ -89,7 +89,7 @@ class TestMTRCache:
         params = self.cache_params(4)
         cache = self.mtr.as_cache(params)
         print(cache.array_pretty_str(Array.Tag))
-        expected = {
+        expected: Dict[Tuple[int, int], Tuple[int, CohStatus]] = {
             (0, 0): (16, CohStatus.Dirty),
             (1, 0): (8, CohStatus.Dirty),
             (2, 0): (0, CohStatus.Dirty),

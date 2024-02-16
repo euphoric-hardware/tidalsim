@@ -48,7 +48,7 @@ def events_to_markers(events: List[Event]) -> List[Marker]:
     left = 0
     right = 0
     idx = 0
-    markers = []
+    markers: List[Marker] = []
 
     # We sort events from left-to-right, but only really care about the highest value at each location
     for pc, valid in sorted(events, key=lambda tup: (tup[0], -tup[1])):

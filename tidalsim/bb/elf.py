@@ -1,13 +1,11 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Match, TextIO
 from itertools import count
-from typing_extensions import cast
 from tqdm import tqdm
 import re
-import sys
 import logging
 
-from tidalsim.bb.common import Marker, control_insts, events_to_markers, intervals_to_events, no_target_insts, BasicBlocks, Interval, Event
+from tidalsim.bb.common import Marker, control_insts, events_to_markers, intervals_to_events, no_target_insts, BasicBlocks, Interval
 
 # Match leading zeros, capture addr, match horizontal whitespace, capture <name> of fn, :, a bunch of chars, newline
 function_header_pattern = re.compile(r"^0*(?P<addr>[0-9a-f]+)[^\S\r\n]+(?P<name><\S+>):.*\n$")
@@ -86,7 +84,7 @@ def parseFile(f: TextIO) -> Tuple[List[ObjdumpInstrEntry], List[Tuple[int, int]]
         if instr in no_target_insts:
             no_target_identified += 1
             logging.debug(f"NOTE: dynamic jump\t{match.groups()}")
-            anno_match = re.search("(<\S+>)", potential_info)
+            anno_match = re.search(r"(<\S+>)", potential_info)
             if anno_match is not None:
                 logging.info(f"NOTE: found an annotation\t{anno_match.group(1)} in \t{match.groups()}")
                 return None, anno_match.group(1)

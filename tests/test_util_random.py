@@ -7,4 +7,4 @@ class TestUtilRandom:
         assert inst_points_to_inst_steps([100, 1000, 2000]) == [100, 900, 1000]
         assert inst_points_to_inst_steps([100]) == [100]
         with pytest.raises(Exception):
-            inst_points_to_inst_steps([100, 1000, 900]) == [100, 900, 1000]
+            _ = inst_points_to_inst_steps([100, 1000, 900]) == [100, 900, 1000]

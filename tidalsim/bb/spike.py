@@ -5,6 +5,7 @@ from tqdm import tqdm
 import numpy as np
 from more_itertools import ichunked
 from pandera.typing import DataFrame
+import pandas as pd
 
 from tidalsim.util.spike_log import SpikeTraceEntry
 from tidalsim.bb.common import BasicBlocks, control_insts, intervals_to_markers
@@ -62,5 +63,5 @@ def spike_trace_to_embedding_df(trace: Iterator[SpikeTraceEntry], bb: BasicBlock
         embedding = np.divide(embedding, np.linalg.norm(embedding))
         df_list.append((instret, total_inst_count + instret, total_inst_count, embedding))
         total_inst_count += instret
-    df = DataFrame[EmbeddingSchema](df_list, columns=['instret', 'inst_count', 'inst_start', 'embedding'])
+    df = DataFrame[EmbeddingSchema](df_list, columns=pd.Index(['instret', 'inst_count', 'inst_start', 'embedding']))
     return df
