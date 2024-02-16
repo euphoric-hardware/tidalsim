@@ -13,6 +13,7 @@ gen-ckpt = "tidalsim.scripts.gen_ckpt:main"
 gen-cache-state = "tidalsim.scripts.gen_cache_state:main"
 tidalsim = "tidalsim.scripts.tidalsim:main"
 analyze = "tidalsim.scripts.analyze:main"
+bench-spike-bb-extraction = "tidalsim.scripts.bench_spike_bb_extraction:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"

@@ -2,9 +2,12 @@ import time
 from pathlib import Path
 from tidalsim.bb.spike import spike_trace_to_bbs
 from tidalsim.util.spike_log import parse_spike_log
+import sys
 
-def bench():
-    with Path('./runs/aha-mont64-24f89045/spike.trace').open('r') as f:
+def main():
+    if len(sys.argv) < 2:
+        raise RuntimeError("Usage: bench-spike-bb-extraction <path to spike log>")
+    with Path(sys.argv[1]).open('r') as f:
         lines = list(f)
         for i in range(10):
             parse_start = time.time()
@@ -23,5 +26,3 @@ def bench():
             print("parse:", parse_end - parse_start)
             print("bb build:", bb_build_end - bb_build_start)
             print("bb query:", bb_query_end - bb_query_start)
-
-bench()
