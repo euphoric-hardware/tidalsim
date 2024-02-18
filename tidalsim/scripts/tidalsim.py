@@ -247,7 +247,6 @@ def main():
             with spike_trace_file.open('r') as f:
                 spike_trace_log = parse_spike_log(f, full_commit_log)
                 mtr_ckpts = mtr_ckpts_from_inst_points(spike_trace_log, block_size=64, inst_points=checkpoint_insts)
-            #pp = pprint.PrettyPrinter(indent=2)
             for mtr_ckpt, ckpt_dir in zip(mtr_ckpts, checkpoints):
                 dump(mtr_ckpt, ckpt_dir / "mtr.pickle")
                 with (ckpt_dir / "mtr.pretty").open('w') as f:
@@ -261,6 +260,11 @@ def main():
     else:
         logging.info("Generating arch checkpoints with spike")
         gen_checkpoints(binary, start_pc=0x8000_0000, inst_points=checkpoint_insts, ckpt_base_dir=checkpoint_dir, n_harts=n_harts, isa=isa)
+
+    # TODO: Reconstruct cache states using the MTR checkpoints and the memory bin files dumped from spike
+    if args.cache_warmup:
+        assert mtr_ckpts
+        #cache_recon = CacheReconstruction(mtr_ckpts, CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=64, n_ways=4))
 
     # Run each checkpoint in RTL sim and extract perf metrics
     perf_files_exist = all([(c / "perf.csv").exists() for c in checkpoints])

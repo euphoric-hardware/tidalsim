@@ -53,6 +53,9 @@ class MTR:
     else:
       self.table[block_addr].last_writetime = timestamp
 
+  # Reconstruct the state of a particular cache configuration given by [params] and load
+  # the cache with data from [dram_bin] which is a binary file containing DRAM contents and
+  # assume the base of DRAM is at [dram_base]
   def as_cache(self, params: CacheParams) -> CacheState:
     def get_set_idx(block_addr: CacheBlockAddr) -> int:
       return (block_addr & ((1 << params.set_bits) - 1))

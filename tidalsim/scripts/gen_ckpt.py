@@ -32,4 +32,4 @@ def main():
     # Store checkpoints in the base directory associated with the binary
     base_dir = dest_dir / f"{binary.name}.loadarch"
     base_dir.mkdir(exist_ok=True)
-    gen_checkpoints(binary, args.pc, [int(x) for x in args.inst_points], base_dir, args.n_harts, args.isa)
+    gen_checkpoints(binary, args.pc, [int(x) for x in args.inst_points], base_dir, int(args.n_harts), args.isa)

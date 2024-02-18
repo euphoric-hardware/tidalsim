@@ -11,11 +11,11 @@ def main():
         lines = list(f)
         for i in range(10):
             parse_start = time.time()
-            spike_trace_log = list(parse_spike_log(lines, False))
+            spike_trace_log = list(parse_spike_log(iter(lines), False))
             parse_end = time.time()
 
             bb_build_start = time.time()
-            bb = spike_trace_to_bbs(spike_trace_log)
+            bb = spike_trace_to_bbs(iter(spike_trace_log))
             bb_build_end = time.time()
 
             bb_query_start = time.time()
