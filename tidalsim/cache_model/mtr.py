@@ -1,7 +1,8 @@
-from typing import Iterator, TypeAlias, Dict, Optional, List, Tuple
+from typing import Iterator, TypeAlias, Dict, Optional, List, Tuple, BinaryIO
 from dataclasses import dataclass, field
 import copy
 import itertools
+from pathlib import Path
 
 from tidalsim.cache_model.cache import CacheParams, CacheState, CohStatus, Array
 from tidalsim.util.spike_log import SpikeTraceEntry, SpikeCommitInfo, Op
@@ -56,9 +57,18 @@ class MTR:
   # Reconstruct the state of a particular cache configuration given by [params] and load
   # the cache with data from [dram_bin] which is a binary file containing DRAM contents and
   # assume the base of DRAM is at [dram_base]
-  def as_cache(self, params: CacheParams) -> CacheState:
+  def as_cache(self, params: CacheParams, dram_bin: Optional[BinaryIO] = None, dram_base: int = 0x8000_0000) -> CacheState:
     def get_set_idx(block_addr: CacheBlockAddr) -> int:
       return (block_addr & ((1 << params.set_bits) - 1))
+
+    def get_cache_block(byte_addr: int) -> int:
+      if dram_bin is None:
+        return 0
+      else:
+        # TODO: handle [dram_base]
+        dram_bin.seek(byte_addr)
+        data = dram_bin.read(params.block_size_bytes)
+        return int.from_bytes(data, byteorder='little')
 
     assert params.block_size_bytes == self.block_size_bytes
     cache = CacheState(params)
@@ -76,6 +86,8 @@ class MTR:
         cache_block = cache.array[way_idx][set_idx]
         cache_block.tag = tag
         cache_block.coherency = CohStatus.Dirty
+        byte_address = block_addr << params.offset_bits
+        cache_block.data = get_cache_block(byte_address)
     return cache
 
 # Given a spike log, an initial MTR state and the number of instructions to pull from

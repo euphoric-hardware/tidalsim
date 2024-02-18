@@ -1,4 +1,5 @@
 import pytest
+import struct
 
 from tidalsim.cache_model.cache import *
 from tidalsim.cache_model.mtr import *
@@ -100,3 +101,35 @@ class TestMTRCache:
             (1, 3): (7, CohStatus.Dirty)
         }
         self.check(expected, cache)
+
+class TestMTRCacheData:
+    def test_mtr_cache_reconstruction_with_data(self, tmp_path: Path) -> None:
+        byte_offset_bits = 6
+        block_size = 2**byte_offset_bits
+        params = CacheParams(32, block_size, n_sets=4, n_ways=1)
+        mtr = MTR(block_size, {
+            # Map of block address -> MTREntry
+            # Set 0
+            0: MTREntry(10, 3),
+            # Set 1
+            1: MTREntry(None, 4),
+            # Set 3
+            7: MTREntry(None, 8),
+            11: MTREntry(100, None)
+        })
+        data_array = [
+            struct.pack('<L', 0xffff_cafe),
+            struct.pack('<L', 0xdede_bbac),
+            struct.pack('<L', 0xffff_cafe),
+            struct.pack('<L', 0xffff_cafe),
+        ]
+        print(data_array)
+        with (tmp_path / "data.bin").open('wb') as f:
+            for datum in data_array:
+                f.write(datum)
+        # For debugging, examine the file using xxd
+        # e.g. xxd /tmp/pytest-of-vighnesh.iyer/pytest-current/test_mtr_cache_reconstruction_current/data.bin
+        with (tmp_path / "data.bin").open('rb') as f:
+            cache = mtr.as_cache(params, dram_bin=f, dram_base=0)
+            cache.array[0][0].data == 0xffff_cafe_ffff_cafe_dede_bbac_ffff_cafe
+            print(cache.array_pretty_str(Array.Data))
