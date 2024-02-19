@@ -103,11 +103,12 @@ class TestMTRCache:
         self.check(expected, cache)
 
 class TestMTRCacheData:
+    byte_offset_bits = 6
+    block_size = 2**byte_offset_bits
+    params = CacheParams(32, block_size, n_sets=4, n_ways=1)
+
     def test_mtr_cache_reconstruction_with_data(self, tmp_path: Path) -> None:
-        byte_offset_bits = 6
-        block_size = 2**byte_offset_bits
-        params = CacheParams(32, block_size, n_sets=4, n_ways=1)
-        mtr = MTR(block_size, {
+        mtr = MTR(self.block_size, {
             # Map of block address -> MTREntry
             # Set 0
             0: MTREntry(10, 3),
@@ -127,9 +128,12 @@ class TestMTRCacheData:
         with (tmp_path / "data.bin").open('wb') as f:
             for datum in data_array:
                 f.write(datum)
+            for datum in [b'\x00' for _ in range(100)]:
+                f.write(datum)
         # For debugging, examine the file using xxd
         # e.g. xxd /tmp/pytest-of-vighnesh.iyer/pytest-current/test_mtr_cache_reconstruction_current/data.bin
+        cache: CacheState
         with (tmp_path / "data.bin").open('rb') as f:
-            cache = mtr.as_cache(params, dram_bin=f, dram_base=0)
-            cache.array[0][0].data == 0xffff_cafe_ffff_cafe_dede_bbac_ffff_cafe
-            print(cache.array_pretty_str(Array.Data))
+            cache = mtr.as_cache(self.params, dram_bin=f, dram_base=0)
+        assert cache.array[0][0].data == 0xffff_cafe_ffff_cafe_dede_bbac_ffff_cafe
+        print(cache.array_pretty_str(Array.Data))

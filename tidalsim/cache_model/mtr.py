@@ -65,8 +65,7 @@ class MTR:
       if dram_bin is None:
         return 0
       else:
-        # TODO: handle [dram_base]
-        dram_bin.seek(byte_addr)
+        dram_bin.seek(byte_addr - dram_base)
         data = dram_bin.read(params.block_size_bytes)
         return int.from_bytes(data, byteorder='little')
 
@@ -86,7 +85,7 @@ class MTR:
         cache_block = cache.array[way_idx][set_idx]
         cache_block.tag = tag
         cache_block.coherency = CohStatus.Dirty
-        byte_address = block_addr << params.offset_bits
+        byte_address = (block_addr << params.offset_bits)
         cache_block.data = get_cache_block(byte_address)
     return cache
 

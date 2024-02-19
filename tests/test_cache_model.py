@@ -4,7 +4,6 @@ from tidalsim.cache_model.cache import *
 
 class TestCacheModel:
     params = CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=64, n_ways=4)
-    # params = CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=8, n_ways=4)
     state = CacheState(params)
     state.fill_with_structured_data()
 
