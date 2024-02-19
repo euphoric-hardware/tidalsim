@@ -22,8 +22,9 @@ from tidalsim.modeling.schemas import *
 from tidalsim.cache_model.mtr import mtr_ckpts_from_inst_points, MTR
 
 
-def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_instructions: Optional[int], chipyard_root: Path, binary: Path, loadarch: Path, cwd: Path, suppress_exit: bool, timeout_cycles: int = 10_000_000) -> None:
-    max_insts = f"+max-instructions={max_instructions}" if max_instructions is not None else ""
+def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_instructions: Optional[int], chipyard_root: Path, binary: Path, loadarch: Path, cwd: Path, suppress_exit: bool, checkpoint_dir: Optional[Path], timeout_cycles: int = 10_000_000) -> None:
+    max_insts_str = f"+max-instructions={max_instructions}" if max_instructions is not None else ""
+    checkpoint_dir_str = f"+checkpoint-dir={checkpoint_dir.resolve()}" if checkpoint_dir is not None else ""
     # +no_hart0_msip = with loadarch, the target should begin execution immediately without
     #   an interrupt required to jump out of the bootrom
     rtl_sim_cmd = f"{simulator} \
@@ -35,9 +36,10 @@ def run_rtl_sim(simulator: Path, perf_file: Path, perf_sample_period: int, max_i
             +max-cycles={timeout_cycles} \
             +perf-sample-period={perf_sample_period} \
             +perf-file={perf_file.resolve()} \
-            {max_insts} \
+            {max_insts_str} \
             +loadmem={binary.resolve()} \
             +loadarch={loadarch.resolve()} \
+            {checkpoint_dir_str} \
             +permissive-off \
             {'+suppress-exit' if suppress_exit else ''} \
             {binary.resolve()}"
@@ -122,6 +124,7 @@ def main():
                 binary=(inst_0_ckpt / 'mem.elf'),
                 loadarch=(inst_0_ckpt / 'loadarch'),
                 suppress_exit=False,
+                checkpoint_dir=None,
                 cwd=golden_sim_dir
             )
         sys.exit(0)
@@ -264,7 +267,13 @@ def main():
     # TODO: Reconstruct cache states using the MTR checkpoints and the memory bin files dumped from spike
     if args.cache_warmup:
         assert mtr_ckpts
-        #cache_recon = CacheReconstruction(mtr_ckpts, CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=64, n_ways=4))
+        cache_params = CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=64, n_ways=4)
+        for mtr, ckpt_dir in zip(mtr_ckpts, checkpoints):
+            cache_state: CacheState
+            with (ckpt_dir / "mem.0x80000000.bin").open('rb') as f:
+                cache_state = mtr.as_cache(cache_params, f, dram_base=0x8000_0000)
+            cache_state.dump_data_arrays(ckpt_dir, "dcache_data_array")
+            cache_state.dump_tag_arrays(ckpt_dir, "dcache_tag_array")
 
     # Run each checkpoint in RTL sim and extract perf metrics
     perf_files_exist = all([(c / "perf.csv").exists() for c in checkpoints])
@@ -282,6 +291,7 @@ def main():
                 binary=(checkpoint_dir / 'mem.elf'),
                 loadarch=(checkpoint_dir / 'loadarch'),
                 suppress_exit=True,
+                checkpoint_dir=(checkpoint_dir if args.cache_warmup else None),
                 cwd=checkpoint_dir
             )
         Parallel(n_jobs=-1)(delayed(run_checkpoint_rtl_sim)(checkpoint) for checkpoint in checkpoints)
