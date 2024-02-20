@@ -3,7 +3,7 @@
 ## Setup in Chipyard
 
 - Install `poetry`
-    - `curl -sSL https://install.python-poetry.org | POETRY_HOME=/nscratch/<YOUR USERNAME>/poetry python3 -`
+    - `curl -sSL https://install.python-poetry.org | POETRY_HOME=/scratch/<YOUR USERNAME>/poetry python3 -`
     - Add `POETRY_HOME/bin` to your `$PATH`
     - Add `export PYTHON_KEYRING_BACKEND="keyring.backends.null.Keyring"` to your `~/.bashrc`
         - There is a [bug with an older version of pip](https://github.com/python-poetry/poetry/issues/3365)
@@ -22,6 +22,18 @@
     - This will install the `tidalsim` scripts and dependencies into the *conda virtualenv*
     - Try running `gen-ckpt -h` and `tidalsim -h`
 
+### TidalSim Flow
+
+- Build a RTL simulator with state injection support
+    - `cd sims/vcs`
+    - `make default STATE_INJECT=1 CONFIG=FastRTLSimRocketNoL2Config` (`STATE_INJECT=1` will use the state injection `TestHarness`, the `CONFIG` is set to a Rocket core without an L2)
+- Run simulation with state injection and functional cache warmup
+    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-FastRTLSimRocketNoL2Config --chipyard-root . --dest-dir runs --cache-warmup`
+    - This will run sampled simulation and store the results in the `runs` directory
+    - Run `head runs/hello.riscv*/**/perf.csv` to see the performance logs for each sample replayed in RTL simulation
+- Collect a reference performance trace (just add `--golden-sim` to the `tidalsim` invocation)
+    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-FastRTLSimRocketNoL2Config --chipyard-root . --dest-dir runs --golden-sim`
+
 ### Manual Checkpoint Generation
 
 - `gen-ckpt --binary $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add --dest-dir checkpoints --inst-points 0 100 200 300`
@@ -34,18 +46,6 @@
         - `+perf-sample-period` is the window for reporting performance statistics (in instructions)
         - `+perf-file` is where performance statistics are dumped to (CSV format)
         - `+max-instructions` terminates the simulation after the specified number of instructions have committed
-
-### TidalSim Flow
-
-- Build a RTL simulator with state injection support
-    - `cd sims/vcs`
-    - `make default STATE_INJECT=1 CONFIG=FastRTLSimRocketConfig`
-- Run simulation with state injection
-    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-FastRTLSimRocketConfig --chipyard-root . --dest-dir runs`
-    - This will run sampled simulation and store the results in the `runs` directory
-    - Run `head runs/hello.riscv*/**/perf.csv` to see the performance logs for each sample replayed in RTL simulation
-- Collect a reference performance trace (just add `--golden-sim` to the `tidalsim` invocation)
-    - `tidalsim --binary tests/hello.riscv --interval-length 1000 --clusters 3 --simulator sims/vcs/simv-inject-chipyard.harness-FastRTLSimRocketConfig --chipyard-root . --dest-dir runs --golden-sim`
 
 ---
 
