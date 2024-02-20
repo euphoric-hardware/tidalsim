@@ -32,6 +32,7 @@ pyarrow = "^15.0.0"
 pytest = "^8.0.0"
 pyright = "^1.1.350"
 setuptools = "^69.1.0"
+black = "^24.2.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -42,3 +43,10 @@ exclude = ["tidalsim/archive/**"]
 include = ["tidalsim", "tests"]
 reportMissingImports = true
 typeCheckingMode = "standard"
+
+[tool.black]
+line-length = 100
+include = "tidalsim|tests"
+extend-exclude = "tidalsim/archive/.*"
+unstable = true
+preview = true

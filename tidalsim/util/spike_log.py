@@ -7,26 +7,44 @@ import logging
 # RISC-V Psuedoinstructions: https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#pseudoinstructions
 branches = [
     # RV64I branches
-    'beq', 'bge', 'bgeu', 'blt', 'bltu', 'bne',
+    "beq",
+    "bge",
+    "bgeu",
+    "blt",
+    "bltu",
+    "bne",
     # RV64C branches
-    'c.beqz', 'c.bnez',
+    "c.beqz",
+    "c.bnez",
     # Psuedo instructions
-    'beqz', 'bnez', 'blez', 'bgez', 'bltz', 'bgtz', 'bgt', 'ble', 'bgtu', 'bleu'
+    "beqz",
+    "bnez",
+    "blez",
+    "bgez",
+    "bltz",
+    "bgtz",
+    "bgt",
+    "ble",
+    "bgtu",
+    "bleu",
 ]
-jumps = ['j', 'jal', 'jr', 'jalr', 'ret', 'call', 'c.j', 'c.jal', 'c.jr', 'c.jalr', 'tail']
-syscalls = ['ecall', 'ebreak', 'mret', 'sret', 'uret']
+jumps = ["j", "jal", "jr", "jalr", "ret", "call", "c.j", "c.jal", "c.jr", "c.jalr", "tail"]
+syscalls = ["ecall", "ebreak", "mret", "sret", "uret"]
 control_insts = set(branches + jumps + syscalls)
-no_target_insts = set(syscalls + ['jr', 'jalr', 'c.jr', 'c.jalr', 'ret'])
+no_target_insts = set(syscalls + ["jr", "jalr", "c.jr", "c.jalr", "ret"])
+
 
 class Op(IntEnum):
-  Store = 0
-  Load = 1
+    Store = 0
+    Load = 1
+
 
 @dataclass
 class SpikeCommitInfo:
     address: int
     data: int
     op: Op
+
 
 @dataclass
 class SpikeTraceEntry:
@@ -50,7 +68,7 @@ def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator
         # Example of first line (regular commit log)
         # core   0: 0x0000000080001a8e (0x00009522) c.add   a0, s0
         s = line.split()
-        if s[2][0] == '>':
+        if s[2][0] == ">":
             continue  # this is a spike-decoded label, ignore it
         pc = int(s[2][2:], 16)
         decoded_inst = s[4]
@@ -81,8 +99,12 @@ def parse_spike_log(log_lines: Iterator[str], full_commit_log: bool) -> Iterator
             s2 = line2.split()
             s2_len = len(s2)
             if s2_len == 8 and s2[5] == "mem":  # store instruction
-                commit_info = SpikeCommitInfo(address=int(s2[6][2:], 16), data=int(s2[7][2:], 16), op=Op.Store)
+                commit_info = SpikeCommitInfo(
+                    address=int(s2[6][2:], 16), data=int(s2[7][2:], 16), op=Op.Store
+                )
             elif s2_len == 9 and s2[7] == "mem":  # load instruction
-                commit_info = SpikeCommitInfo(address=int(s2[8][2:], 16), data=int(s2[6][2:], 16), op=Op.Load)
+                commit_info = SpikeCommitInfo(
+                    address=int(s2[8][2:], 16), data=int(s2[6][2:], 16), op=Op.Load
+                )
         yield SpikeTraceEntry(pc, decoded_inst, inst_count, commit_info)
         inst_count += 1

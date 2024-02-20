@@ -47,6 +47,14 @@
         - `+perf-file` is where performance statistics are dumped to (CSV format)
         - `+max-instructions` terminates the simulation after the specified number of instructions have committed
 
+## Dev Notes
+
+- To run unittests: `pytest`
+    - To run a specific test: `pytest tests/test_mtr.py -rA -k "with_data"` (`-k` specifies a string fragment of test function you want to run, `-rA` shows the test stdout output)
+    - Some tests use temporary directories to do their work, those directories are persisted here: `ls /tmp/pytest-of-<user>/pytest-current/<test function>/`
+- To typecheck: `poetry run pyright`
+- To format: `poetry run black tidalsim`, `poetry run black tests`
+
 ---
 
 ---

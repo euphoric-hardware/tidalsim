@@ -3,6 +3,7 @@ from pandera.typing import DataFrame, Series
 from pandera.engines.numpy_engine import Object
 from typing import List
 
+
 class EmbeddingSchema(pa.DataFrameModel):
     # Instructions retired in this interval
     instret: Series[int]
@@ -13,6 +14,7 @@ class EmbeddingSchema(pa.DataFrameModel):
     # An embedding vector for this interval
     embedding: Series[Object]
 
+
 class ClusteringSchema(EmbeddingSchema, pa.DataFrameModel):
     # The label for the cluster this interval has been placed into
     cluster_id: Series[int]
@@ -21,11 +23,13 @@ class ClusteringSchema(EmbeddingSchema, pa.DataFrameModel):
     # Whether this interval is chosen for RTL simulation
     chosen_for_rtl_sim: Series[bool]
 
+
 class EstimatedPerfSchema(ClusteringSchema, pa.DataFrameModel):
     # Estimated number of cycles executed in this interval (from extrapolation)
     est_cycles: Series[int]
     # Estimated IPC based on [est_cycles] and [instret]
     est_ipc: Series[float]
+
 
 # This dataframe schema is for the golden perf metrics from full RTL simulation
 class GoldenPerfSchema(pa.DataFrameModel):

@@ -9,17 +9,22 @@ import numpy as np
 
 from tidalsim.cache_model.cache import *
 
+
 def main():
-    logging.basicConfig(format='%(levelname)s - %(filename)s:%(lineno)d - %(message)s', level=logging.INFO)
+    logging.basicConfig(
+        format="%(levelname)s - %(filename)s:%(lineno)d - %(message)s", level=logging.INFO
+    )
 
     parser = argparse.ArgumentParser(
-                    prog='gen-cache-state',
-                    description='Dump Dcache tag and data arrays filled with dummy data')
-    parser.add_argument('--phys-addr-bits', type=int, default=32, help='Number of physical address bits')
-    parser.add_argument('--block-size', type=int, default=64, help='Block size in bytes')
-    parser.add_argument('--n-sets', type=int, default=64, help='Number of sets')
-    parser.add_argument('--n-ways', type=int, default=4, help='Number of ways')
-    parser.add_argument('--dir', type=str, required=True, help='Directory in which to dump things')
+        prog="gen-cache-state", description="Dump Dcache tag and data arrays filled with dummy data"
+    )
+    parser.add_argument(
+        "--phys-addr-bits", type=int, default=32, help="Number of physical address bits"
+    )
+    parser.add_argument("--block-size", type=int, default=64, help="Block size in bytes")
+    parser.add_argument("--n-sets", type=int, default=64, help="Number of sets")
+    parser.add_argument("--n-ways", type=int, default=4, help="Number of ways")
+    parser.add_argument("--dir", type=str, required=True, help="Directory in which to dump things")
     args = parser.parse_args()
     data_dir = Path(args.dir)
     data_dir.mkdir(exist_ok=True)

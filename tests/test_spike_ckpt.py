@@ -2,10 +2,23 @@ import pytest
 
 from tidalsim.util.spike_ckpt import *
 
+
 class TestSpikeCkpt:
     def test_get_spike_cmd(self) -> None:
-        assert get_spike_cmd(Path.cwd(), 1, 'rv64gc', Path.cwd() / "cmds.txt", inst_log=True, commit_log=True, suppress_exit=True) == \
-                f"spike -d --debug-cmd={Path.cwd() / 'cmds.txt'} -p1 --pmpregions=0 --isa=rv64gc -m{0x8000_0000}:{0x1000_0000} -l --log-commits +suppress-exit {Path.cwd().resolve()}"
+        assert (
+            get_spike_cmd(
+                Path.cwd(),
+                1,
+                "rv64gc",
+                Path.cwd() / "cmds.txt",
+                inst_log=True,
+                commit_log=True,
+                suppress_exit=True,
+            )
+            == f"spike -d --debug-cmd={Path.cwd() / 'cmds.txt'} -p1 --pmpregions=0 --isa=rv64gc"
+            f" -m{0x8000_0000}:{0x1000_0000} -l --log-commits +suppress-exit"
+            f" {Path.cwd().resolve()}"
+        )
 
     def test_reg_dump(self) -> None:
         cmd_block = reg_dump(0)
@@ -21,7 +34,9 @@ class TestSpikeCkpt:
         assert "reg 1 31" in cmd_block.cmds
 
     def test_inst_points_dump(self) -> None:
-        cmd_block = inst_points_dump(0x8000_0000, [100, 2000, 3000], n_harts=1, ckpt_base_dir=Path.cwd())
+        cmd_block = inst_points_dump(
+            0x8000_0000, [100, 2000, 3000], n_harts=1, ckpt_base_dir=Path.cwd()
+        )
         assert "until pc 0 0x80000000" in cmd_block.cmds
         assert "rs 100" in cmd_block.cmds
         assert "rs 1900" in cmd_block.cmds

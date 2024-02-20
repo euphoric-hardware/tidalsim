@@ -4,10 +4,11 @@ from tidalsim.bb.spike import spike_trace_to_bbs
 from tidalsim.util.spike_log import parse_spike_log
 import sys
 
+
 def main():
     if len(sys.argv) < 2:
         raise RuntimeError("Usage: bench-spike-bb-extraction <path to spike log>")
-    with Path(sys.argv[1]).open('r') as f:
+    with Path(sys.argv[1]).open("r") as f:
         lines = list(f)
         for i in range(10):
             parse_start = time.time()

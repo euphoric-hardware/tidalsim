@@ -11,6 +11,7 @@ from tidalsim.util.spike_log import SpikeTraceEntry
 from tidalsim.bb.common import BasicBlocks, control_insts, intervals_to_markers
 from tidalsim.modeling.schemas import *
 
+
 def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
     # The end of the previous Interval is the PC that was jumped from
     # The start of the next Interval is the PC that was jumped to
@@ -23,20 +24,29 @@ def spike_trace_to_bbs(trace: Iterator[SpikeTraceEntry]) -> BasicBlocks:
         if trace_entry.is_control_inst():
             # A new interval is recorded when a control instruction is encountered
             # Intervals are inclusive of the start, but exclusive of the end
-            intervals += [(start, trace_entry.pc+1)]
+            intervals += [(start, trace_entry.pc + 1)]
             start = None
-        if previous_inst and (abs(trace_entry.pc - previous_inst.pc) > 4) and not previous_inst.is_control_inst():
-            raise RuntimeError(f"Control diverged from PC: {hex(previous_inst.pc)} \
-                    to PC: {hex(trace_entry.pc)}, but the last instruction {previous_inst.decoded_inst} \
-                    wasn't a control instruction")
+        if (
+            previous_inst
+            and (abs(trace_entry.pc - previous_inst.pc) > 4)
+            and not previous_inst.is_control_inst()
+        ):
+            raise RuntimeError(
+                f"Control diverged from PC: {hex(previous_inst.pc)}                     to PC:"
+                f" {hex(trace_entry.pc)}, but the last instruction {previous_inst.decoded_inst}    "
+                "                 wasn't a control instruction"
+            )
         previous_inst = trace_entry
 
     if start is not None and previous_inst is not None:
-       intervals += [(start, previous_inst.pc+1)]
+        intervals += [(start, previous_inst.pc + 1)]
 
     return BasicBlocks(markers=intervals_to_markers(intervals))
 
-def spike_trace_to_embedding_df(trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int) -> DataFrame[EmbeddingSchema]:
+
+def spike_trace_to_embedding_df(
+    trace: Iterator[SpikeTraceEntry], bb: BasicBlocks, interval_length: int
+) -> DataFrame[EmbeddingSchema]:
     # Dimensions of dataframe
     # # rows = # of intervals = ceil( (length of trace) / interval_length )
     # # cols = # of features = # of elements in the intervaltree
@@ -63,5 +73,7 @@ def spike_trace_to_embedding_df(trace: Iterator[SpikeTraceEntry], bb: BasicBlock
         embedding = np.divide(embedding, np.linalg.norm(embedding))
         df_list.append((instret, total_inst_count + instret, total_inst_count, embedding))
         total_inst_count += instret
-    df = DataFrame[EmbeddingSchema](df_list, columns=pd.Index(['instret', 'inst_count', 'inst_start', 'embedding']))
+    df = DataFrame[EmbeddingSchema](
+        df_list, columns=pd.Index(["instret", "inst_count", "inst_start", "embedding"])
+    )
     return df

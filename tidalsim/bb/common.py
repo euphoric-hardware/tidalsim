@@ -14,6 +14,7 @@ Event = Tuple[int, int]
 # really a basic block but empty space.
 Marker = Tuple[int, int | None]
 
+
 @dataclass
 class BasicBlocks:
     markers: List[Marker]
@@ -38,11 +39,13 @@ class BasicBlocks:
         # Counts the number of markers that map to the start of a basic block
         return self.length
 
+
 def intervals_to_events(intervals: List[Interval]) -> List[Event]:
     events: List[Tuple[int, int]] = []
     for start, end in intervals:
         events += [(start, end), (end, 0)]
     return events
+
 
 def events_to_markers(events: List[Event]) -> List[Marker]:
     left = 0
@@ -75,17 +78,33 @@ def intervals_to_markers(intervals: List[Interval]) -> List[Marker]:
     markers = events_to_markers(events)
     return markers
 
+
 # RISC-V Psuedoinstructions: https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#pseudoinstructions
 branches = [
-        # RV64I branches
-        'beq', 'bge', 'bgeu', 'blt', 'bltu', 'bne',
-        # RV64C branches
-        'c.beqz', 'c.bnez',
-        # Psuedo instructions
-        'beqz', 'bnez', 'blez', 'bgez', 'bltz', 'bgtz', 'bgt', 'ble', 'bgtu', 'bleu'
-        ]
-jumps = ['j', 'jal', 'jr', 'jalr', 'ret', 'call', 'c.j', 'c.jal', 'c.jr', 'c.jalr', 'tail']
-syscalls = ['ecall', 'ebreak', 'mret', 'sret', 'uret']
+    # RV64I branches
+    "beq",
+    "bge",
+    "bgeu",
+    "blt",
+    "bltu",
+    "bne",
+    # RV64C branches
+    "c.beqz",
+    "c.bnez",
+    # Psuedo instructions
+    "beqz",
+    "bnez",
+    "blez",
+    "bgez",
+    "bltz",
+    "bgtz",
+    "bgt",
+    "ble",
+    "bgtu",
+    "bleu",
+]
+jumps = ["j", "jal", "jr", "jalr", "ret", "call", "c.j", "c.jal", "c.jr", "c.jalr", "tail"]
+syscalls = ["ecall", "ebreak", "mret", "sret", "uret"]
 control_insts = set(branches + jumps + syscalls)
 
-no_target_insts = set(syscalls + ['jr', 'jalr', 'c.jr', 'c.jalr', 'ret'])
+no_target_insts = set(syscalls + ["jr", "jalr", "c.jr", "c.jalr", "ret"])
