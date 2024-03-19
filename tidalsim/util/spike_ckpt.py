@@ -36,8 +36,8 @@ def get_spike_cmd(
         "+suppress-exit" if suppress_exit else ""
     )  # This is an HTIF flag and must be passed last!
     return (
-        "spike"
-        f" {debug_flags} {spike_flags} {inst_log_flag} {commit_log_flag} {suppress_exit_flag} {binary.resolve()}"
+        "spike "
+        f"{debug_flags} {spike_flags} {inst_log_flag} {commit_log_flag} {suppress_exit_flag} {binary.resolve()}"
     )
 
 

@@ -2,6 +2,7 @@ import subprocess
 import fileinput
 import sys
 from pathlib import Path
+from typing import Optional
 import logging
 
 
@@ -36,3 +37,44 @@ def run_cmd_pipe_stdout(cmd: str, cwd: Path, stdout: Path) -> subprocess.Complet
         result = subprocess.run(cmd, shell=True, stdout=stdout_file, cwd=cwd)
         assert result.returncode == 0, f"{cmd} failed with returncode {result.returncode}"
         return result
+
+
+def run_rtl_sim_cmd(
+    simulator: Path,
+    perf_file: Path,
+    perf_sample_period: int,
+    max_instructions: Optional[int],
+    chipyard_root: Path,
+    binary: Path,
+    loadarch: Path,
+    suppress_exit: bool,
+    checkpoint_dir: Optional[Path],
+    timeout_cycles: int = 10_000_000,
+) -> str:
+    max_insts_str = f"+max-instructions={max_instructions} " if max_instructions is not None else ""
+    checkpoint_dir_str = (
+        f"+checkpoint-dir={checkpoint_dir.resolve()} " if checkpoint_dir is not None else ""
+    )
+    suppress_exit_str = "+suppress-exit " if suppress_exit else ""
+    # +no_hart0_msip = with loadarch, the target should begin execution immediately without
+    #   an interrupt required to jump out of the bootrom
+    rtl_sim_cmd = (
+        f"{simulator} "
+        "+permissive "
+        "+dramsim "
+        f"+dramsim_ini_dir={chipyard_root.resolve()}/generators/testchipip/src/main/resources/dramsim2_ini "
+        "+no_hart0_msip "
+        "+ntb_random_seed_automatic "
+        f"+max-cycles={timeout_cycles} "
+        f"+perf-sample-period={perf_sample_period} "
+        f"+perf-file={perf_file.resolve()} "
+        f"{max_insts_str}"
+        f"+loadmem={binary.resolve()} "
+        f"+loadarch={loadarch.resolve()} "
+        f"{checkpoint_dir_str}"
+        "+permissive-off "
+        f"{suppress_exit_str}"
+        f"{binary.resolve()}"
+    )
+    return rtl_sim_cmd
+    # run_cmd(rtl_sim_cmd, cwd)

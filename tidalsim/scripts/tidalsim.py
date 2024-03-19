@@ -10,7 +10,7 @@ import pprint
 from pandera.typing import DataFrame
 import numpy as np
 
-from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe, run_cmd_pipe_stdout
+from tidalsim.util.cli import run_cmd, run_cmd_capture, run_cmd_pipe, run_cmd_pipe_stdout, run_rtl_sim_cmd
 from tidalsim.util.spike_ckpt import *
 from tidalsim.util.spike_log import parse_spike_log
 from tidalsim.bb.spike import spike_trace_to_bbs, spike_trace_to_embedding_df, BasicBlocks
@@ -20,38 +20,6 @@ from tidalsim.util.random import inst_points_to_inst_steps
 from tidalsim.modeling.clustering import *
 from tidalsim.modeling.schemas import *
 from tidalsim.cache_model.mtr import mtr_ckpts_from_inst_points, MTR
-
-
-def run_rtl_sim(
-    simulator: Path,
-    perf_file: Path,
-    perf_sample_period: int,
-    max_instructions: Optional[int],
-    chipyard_root: Path,
-    binary: Path,
-    loadarch: Path,
-    cwd: Path,
-    suppress_exit: bool,
-    checkpoint_dir: Optional[Path],
-    timeout_cycles: int = 10_000_000,
-) -> None:
-    max_insts_str = f"+max-instructions={max_instructions}" if max_instructions is not None else ""
-    checkpoint_dir_str = (
-        f"+checkpoint-dir={checkpoint_dir.resolve()}" if checkpoint_dir is not None else ""
-    )
-    # +no_hart0_msip = with loadarch, the target should begin execution immediately without
-    #   an interrupt required to jump out of the bootrom
-    rtl_sim_cmd = (
-        f"{simulator}             +permissive             +dramsim            "
-        f" +dramsim_ini_dir={chipyard_root.resolve()}/generators/testchipip/src/main/resources/dramsim2_ini"
-        "             +no_hart0_msip             +ntb_random_seed_automatic            "
-        f" +max-cycles={timeout_cycles}             +perf-sample-period={perf_sample_period}       "
-        f"      +perf-file={perf_file.resolve()}             {max_insts_str}            "
-        f" +loadmem={binary.resolve()}             +loadarch={loadarch.resolve()}            "
-        f" {checkpoint_dir_str}             +permissive-off            "
-        f" {'+suppress-exit' if suppress_exit else ''}             {binary.resolve()}"
-    )
-    run_cmd(rtl_sim_cmd, cwd)
 
 
 def main():
@@ -173,7 +141,7 @@ def main():
                 isa=isa,
             )
             inst_0_ckpt = golden_sim_dir / "0x80000000.0"
-            run_rtl_sim(
+            rtl_sim_cmd = run_rtl_sim_cmd(
                 simulator=simulator,
                 perf_file=golden_perf_file,
                 perf_sample_period=args.interval_length,
@@ -183,8 +151,8 @@ def main():
                 loadarch=(inst_0_ckpt / "loadarch"),
                 suppress_exit=False,
                 checkpoint_dir=None,
-                cwd=golden_sim_dir,
             )
+            run_cmd(rtl_sim_cmd, cwd=golden_sim_dir)
         sys.exit(0)
 
     bb: BasicBlocks
@@ -345,7 +313,6 @@ def main():
             isa=isa,
         )
 
-    # TODO: Reconstruct cache states using the MTR checkpoints and the memory bin files dumped from spike
     if args.cache_warmup:
         assert mtr_ckpts
         cache_params = CacheParams(phys_addr_bits=32, block_size_bytes=64, n_sets=64, n_ways=4)
@@ -357,7 +324,8 @@ def main():
             cache_state.dump_tag_arrays(ckpt_dir, "dcache_tag_array")
 
     # Run each checkpoint in RTL sim and extract perf metrics
-    perf_files_exist = all([(c / "perf.csv").exists() for c in checkpoints])
+    perf_filename = "perf_warmup.csv" if args.cache_warmup else "perf_cold.csv"
+    perf_files_exist = all([(c / perf_filename).exists() for c in checkpoints])
     if perf_files_exist:
         logging.info(
             "Performance metrics for checkpoints already collected, skipping RTL simulation"
@@ -368,9 +336,9 @@ def main():
         )
 
         def run_checkpoint_rtl_sim(checkpoint_dir: Path) -> None:
-            run_rtl_sim(
+            rtl_sim_cmd = run_rtl_sim_cmd(
                 simulator=simulator,
-                perf_file=(checkpoint_dir / "perf.csv"),
+                perf_file=(checkpoint_dir / perf_filename),
                 perf_sample_period=int(args.interval_length / 10),
                 max_instructions=args.interval_length,
                 chipyard_root=chipyard_root,
@@ -378,8 +346,8 @@ def main():
                 loadarch=(checkpoint_dir / "loadarch"),
                 suppress_exit=True,
                 checkpoint_dir=(checkpoint_dir if args.cache_warmup else None),
-                cwd=checkpoint_dir,
             )
+            run_cmd(rtl_sim_cmd, cwd=checkpoint_dir)
 
         Parallel(n_jobs=-1)(
             delayed(run_checkpoint_rtl_sim)(checkpoint) for checkpoint in checkpoints
